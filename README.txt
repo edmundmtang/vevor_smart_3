@@ -60,3 +60,9 @@ V0.15 RECOMMENDED OFFLINE TEST:
   py -m unittest discover -v
 
 WARNING: v0.15 changes the meaning of --loop-overlap-mm from forward-only to symmetric TOTAL overlap. Review any existing commands before cutting.
+
+
+v0.16 calibration addition: calibration_mirrored_l_gaps.svg, MIRRORED_L_GAP_TEST_README.txt, mirrored_l_geometry.csv, and test_mirrored_l_gaps.py. Six mirrored-L open-path approach tests (0/2 mm gaps; X/Y/45-degree diagonal). Cutting algorithm remains v0.15.
+
+
+v0.17 compact horizontal travel-direction calibration: calibration_horizontal_travel_direction.svg, HORIZONTAL_TRAVEL_TEST_README.txt, horizontal_travel_geometry.csv and test_horizontal_travel.py. Four mirrored-L pairs (+X/-X x 0/2 mm gap), 115x100 mm canvas. Cutting logic unchanged. Future blade-tip tracking/overshoot idea documented but NOT implemented.
