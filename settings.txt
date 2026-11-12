@@ -1,0 +1,20 @@
+# VEVOR Smart 3 calibration (from 10 mm physical test)
+x_scale = 0.74906512
+y_scale = 3.59950979
+x_offset = 0.0
+y_offset = 0.0
+
+# Manually position to Y=-115 and press Origin after each mat load.
+preserve_origin = true
+
+# Eject mat after cutting (observed original job ending).
+finish_mode = standard
+
+# Masking tape starting values; tune with small test cuts.
+# Values are cutter command numbers, NOT verified grams or mm/s.
+cut_force = 200
+cut_speed = 100
+
+# Nominal 12 x 12 inch mat dimensions. Reduce for actual usable area.
+mat_width_mm = 304.8
+mat_height_mm = 304.8
