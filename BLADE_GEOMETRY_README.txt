@@ -1,14 +1,17 @@
-SMART 3 v0.14 — MULTI-SEGMENT OVERLAP & EXPERIMENTAL BLADE OFFSET
+SMART 3 v0.15 — MULTI-SEGMENT OVERLAP & EXPERIMENTAL BLADE OFFSET
 =================================================================
 
-1. MULTI-SEGMENT OVERLAP
-  --loop-overlap-mm 1.0
-  After finishing a closed contour, the commanded path retraces the same
-  existing segments for 1 mm total arc length, interpolating the final point.
-  This now works on circles with segments shorter than 1 mm. Overlap >= the
-  entire perimeter is skipped; open paths are unchanged. Console diagnostics
-  show how many segments the overlap traversed. Overlap still cannot guarantee
-  physical blade-tip closure because the knife can swivel.
+1. SYMMETRIC MULTI-SEGMENT OVERLAP (v0.15)
+  --loop-overlap-mm 2.0
+  The nominal seam stays at the chosen straight-run midpoint (or original
+  seam if no suitable straight run exists). The physical cut starts 1.0 mm
+  BEFORE that seam along the existing contour, traverses one full revolution,
+  and ends 1.0 mm AFTER the seam. Thus 2.0 mm is the TOTAL duplicated length.
+  This replaces forward-only overlap; there is no overlap-mode switch.
+  Both halves can traverse multiple segments, corners, and curves. Open paths
+  remain unchanged. Requests >= the entire perimeter are skipped.
+  The physical start moves, but no new off-contour cutting geometry is added.
+  The entry hook and blade-tip lag may still cause incomplete physical cuts.
 
 2. EXPERIMENTAL BLADE OFFSET
   --blade-offset-mm 0.2
@@ -30,9 +33,9 @@ SMART 3 v0.14 — MULTI-SEGMENT OVERLAP & EXPERIMENTAL BLADE OFFSET
 
 4. RECOMMENDED OFFLINE CHECKS (PowerShell)
   py -m unittest discover -v
-  py smart3_cut.py calibration_loops.svg --dry-run --loop-start auto-straight --loop-overlap-mm 1.0 --output loops_10.hpgl
+  py smart3_cut.py calibration_loops.svg --dry-run --loop-start auto-straight --loop-overlap-mm 2.0 --output loops_symmetric_20.hpgl
   py smart3_cut.py calibration_corners.svg --dry-run --blade-offset-mm 0.2 --output corners_offset_02.hpgl
-  py smart3_cut.py calibration_loops.svg --dry-run --loop-start auto-straight --loop-overlap-mm 1.0 --blade-offset-mm 0.2 --output loops_10_offset_02.hpgl
+  py smart3_cut.py calibration_loops.svg --dry-run --loop-start auto-straight --loop-overlap-mm 2.0 --blade-offset-mm 0.2 --output loops_symmetric_20_offset_02.hpgl
 
   Compare HPGL and bounds before cutting. In particular inspect corner pivot
   arcs and whether any paths are near other contours or mat edges.

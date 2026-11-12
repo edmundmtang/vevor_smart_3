@@ -344,7 +344,7 @@ def main():
     parser.add_argument('--contour-modes', type=Path,
                         help='Optional JSON map of zero-based path indices to per-contour cut strategy')
     parser.add_argument('--loop-overlap-mm', type=float, default=0.0,
-                        help='Retrace the start of the closed contour across multiple segments (mm); default disabled')
+                        help='Total symmetric overlap centered on nominal seam, half before and half after, following corners (mm); default disabled')
     parser.add_argument('--blade-offset-mm', type=float, default=0.0,
                         help='EXPERIMENTAL: drag-knife holder path offset in mm (0..2); 0 disables')
     parser.add_argument('--blade-arc-step-deg', type=float, default=10.0,

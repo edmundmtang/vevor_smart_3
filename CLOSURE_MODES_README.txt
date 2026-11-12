@@ -1,3 +1,5 @@
+NOTE (v0.15): Historical v0.13 closure documentation below. Overlap is NOW symmetric, not forward-only. See README.txt and BLADE_GEOMETRY_README.txt for current behavior.
+
 CLOSURE MODES / CALIBRATION — v0.13
 ==================================
 

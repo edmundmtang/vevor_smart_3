@@ -86,10 +86,12 @@ def relocate(outline, mode='original', min_straight=0.5, max_turn_degrees=5.0):
 
 
 def add_same_path_overlap(outline, distance_mm):
-    """Retrace a closed contour by arc length, including across short segments.
+    """Cut a closed contour with symmetric same-path overlap about its nominal seam.
 
-    A zero-length/degenerate contour or overlap >= full perimeter is rejected.
-    The overlap is appended as original vertices plus a final interpolated point.
+    The nominal seam is outline[0] == outline[-1]. For total overlap D,
+    begin D/2 backward along the contour and finish D/2 forward of the seam.
+    The blade-down route travels one full perimeter plus D, crossing every
+    original vertex in order; no shortcuts or off-contour points are added.
     """
     pts = list(outline)
     if not math.isfinite(distance_mm) or distance_mm < 0:
@@ -98,24 +100,47 @@ def add_same_path_overlap(outline, distance_mm):
         return pts, 'disabled'
     if len(pts) < 4 or math.dist(pts[0], pts[-1]) > 1e-7:
         return pts, 'open/unchanged'
-    lengths = [math.dist(a,b) for a,b in zip(pts,pts[1:])]
+    # Remove zero-length segments, retaining the nominal seam.
+    vertices = [pts[0]]
+    for point in pts[1:-1]:
+        if math.dist(vertices[-1], point) > 1e-10:
+            vertices.append(point)
+    if len(vertices) < 3 or math.dist(vertices[-1], vertices[0]) < 1e-10:
+        return pts, 'degenerate/unchanged'
+    edges = vertices + [vertices[0]]
+    lengths = [math.dist(a, b) for a, b in zip(edges, edges[1:])]
     perimeter = sum(lengths)
     if perimeter < 1e-8 or distance_mm >= perimeter - 1e-8:
         return pts, f'overlap skipped: requested {distance_mm:.3f} mm >= perimeter {perimeter:.3f} mm'
-    remaining = distance_mm
-    appended = []
-    traversed = 0
-    for a,b,length in zip(pts,pts[1:],lengths):
-        if length < 1e-10:
-            continue
-        traversed += 1
-        if remaining >= length - 1e-10:
-            appended.append(b)
-            remaining -= length
-            if remaining <= 1e-10:
-                break
-        else:
-            t = remaining / length
-            appended.append((a[0]+t*(b[0]-a[0]), a[1]+t*(b[1]-a[1])))
-            break
-    return pts + appended, f'overlap {distance_mm:.3f} mm across {traversed} segment(s)'
+    cumulative = [0.0]
+    for length in lengths:
+        cumulative.append(cumulative[-1] + length)
+
+    def position(s):
+        s %= perimeter
+        for i, length in enumerate(lengths):
+            if s <= cumulative[i+1] + 1e-10:
+                t = max(0.0, min(1.0, (s-cumulative[i])/length))
+                a,b = edges[i],edges[i+1]
+                return (a[0]+t*(b[0]-a[0]), a[1]+t*(b[1]-a[1]))
+        return vertices[0]
+
+    half = distance_mm / 2
+    start = perimeter - half
+    end = start + perimeter + distance_mm
+    # Include every encountered original vertex, even when overlap crosses corners.
+    stops = [(start, None)]
+    for lap in range(3):
+        for arc in cumulative[1:]:
+            value = lap*perimeter + arc
+            if start + 1e-9 < value < end - 1e-9:
+                stops.append((value, edges[cumulative.index(arc)]))
+    stops.append((end, None))
+    out = []
+    for s, vertex in stops:
+        point = vertex if vertex is not None else position(s)
+        if not out or math.dist(out[-1], point) > 1e-9:
+            out.append(point)
+    return out, (f'symmetric overlap {distance_mm:.3f} mm total '
+                 f'(start -{half:.3f} mm, end +{half:.3f} mm); '
+                 f'{len(out)-1} cut segment(s)')
