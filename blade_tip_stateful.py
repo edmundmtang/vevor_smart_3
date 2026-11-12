@@ -32,7 +32,8 @@ class Model:
     conditioning_mm: float=3.0
     step_mm: float=0.15
     max_correction_mm: float=0.65
-    iterations: int=5
+    iterations: int=12
+    vertex_weight: float=2.5
     def __post_init__(self):
         for v in vars(self).values():
             if not math.isfinite(v): raise ValueError('Nonfinite model parameter')
@@ -40,7 +41,7 @@ class Model:
                 .2<=self.x_rotation<=3 and .2<=self.y_rotation<=3 and
                 0<=self.min_approach_x_mm<=.4 and 0<=self.min_approach_y_mm<=.4 and
                 0<=self.conditioning_mm<=8 and .05<=self.step_mm<=.5 and
-                0<self.max_correction_mm<=1.5 and 1<=self.iterations<=15):
+                0<self.max_correction_mm<=1.5 and 1<=self.iterations<=25 and 1<=self.vertex_weight<=5):
             raise ValueError('Model parameter outside experimental safety bounds')
 
 def sample(points,step):
@@ -53,77 +54,100 @@ def sample(points,step):
     if len(out)<2: raise ValueError('Empty path')
     return out
 
-def forward(holder,model):
-    """Predict tip positions at each holder sample, with finite recovery.
+def _direction_at(points, i, window_mm=0.45):
+    """Windowed tangent avoids interpreting numerical correction jitter as blade turns."""
+    lo=i; hi=i
+    dist=0.
+    while lo>0 and dist<window_mm:
+        dist+=length(minus(points[lo],points[lo-1])); lo-=1
+    dist=0.
+    while hi<len(points)-1 and dist<window_mm:
+        dist+=length(minus(points[hi+1],points[hi])); hi+=1
+    d=minus(points[hi],points[lo])
+    if length(d)<1e-9:
+        d=minus(points[min(i+1,len(points)-1)],points[max(i-1,0)])
+    return unit(d)
 
-    Orientation moves toward travel direction with X/Y dependent response.
-    Lateral residual is held with turn-sign memory. The transition completes
-    exactly after recovery_mm of travel (no asymptotic tail).
+def forward(holder, model):
+    """Stateful phenomenological predictor, with finite turn response and held bias.
+
+    Uses an angular interpolation (safe for reversals) and a spatially averaged
+    holder tangent. This is a predictive hypothesis, not a measured blade model.
     """
     if len(holder)<2: raise ValueError('Need two holder positions')
-    tangents=[unit(minus(b,a)) for a,b in zip(holder,holder[1:])]
-    t=tangents[0]; previous=t; orientation=t; side=0.; elapsed=model.recovery_mm
-    from_orientation=t; to_orientation=t; result=[]
+    directions=[_direction_at(holder,i) for i in range(len(holder))]
+    orientation=directions[0]; previous=directions[0]; side=0.
+    from_angle=math.atan2(orientation[1],orientation[0]); to_angle=from_angle
+    elapsed=model.recovery_mm
+    result=[]
     for i,h in enumerate(holder):
+        t=directions[i]
         if i:
-            t=tangents[i-1]
-            delta=length(minus(h,holder[i-1]))
-            turn=cross(previous,t)
-            if abs(turn)>0.015:
-                side=1. if turn>0 else -1.
-                from_orientation=orientation
-                to_orientation=t
+            ds=length(minus(h,holder[i-1]))
+            angle=math.atan2(t[1],t[0])
+            prev_angle=math.atan2(previous[1],previous[0])
+            change=math.atan2(math.sin(angle-prev_angle),math.cos(angle-prev_angle))
+            if abs(change)>0.035 and elapsed>=model.recovery_mm:
+                from_angle=math.atan2(orientation[1],orientation[0]); to_angle=angle
                 elapsed=0.
-            elapsed=min(model.recovery_mm,elapsed+delta)
-            w=smooth(elapsed/model.recovery_mm)
-            # Anisotropic rotation responsiveness, normalized for unit length.
-            weighted=unit((to_orientation[0]*model.x_rotation,to_orientation[1]*model.y_rotation))
-            base=unit((from_orientation[0]*model.x_rotation,from_orientation[1]*model.y_rotation))
-            orientation=unit(mix(base,weighted,w))
+                side=1. if change>0 else -1.
+            elif elapsed<model.recovery_mm:
+                to_angle=angle
+            elapsed=min(model.recovery_mm,elapsed+ds)
+            difference=math.atan2(math.sin(to_angle-from_angle),math.cos(to_angle-from_angle))
+            gain=math.hypot(t[0]*model.x_rotation,t[1]*model.y_rotation)
+            w=smooth(min(1.,elapsed*gain/model.recovery_mm))
+            theta=from_angle+w*difference
+            orientation=(math.cos(theta),math.sin(theta))
             previous=t
-        # Remove trailing offset from holder: steady tip is behind holder.
-        # Lateral bias retains signed side from the last actual turn.
-        bias=(model.min_approach_x_mm*abs(t[0])+model.min_approach_y_mm*abs(t[1]))*side
-        tip=plus(minus(h,scale(orientation,model.blade_offset_mm)),scale(normal(t),bias))
-        result.append(tip)
+        bias=side*(model.min_approach_x_mm*abs(t[0])+model.min_approach_y_mm*abs(t[1]))
+        result.append(plus(minus(h,scale(orientation,model.blade_offset_mm)),scale(normal(t),bias)))
     return result
 
 def inverse(points,model,closed=False):
-    """Iterative sampled inverse: shift holder until simulated tip tracks target.
+    """Regularized inverse fit of a sampled holder path to the intended cut.
 
-    For closed contours, starts on the last edge (on-contour conditioning).
-    For open contours, adds an off-contour lead-in; use sacrificial material.
-    All output is experimental and must be dry-run before cutting.
+    Vertex points receive additional weight. Smoothing discourages jagged holder
+    corrections that would trigger spurious simulated turns. This solver cannot
+    guarantee perfect corners and is not approved for production cuts.
     """
     pts=[tuple(map(float,p)) for p in points]
+    if len(pts)<2: raise ValueError('Need at least two points')
     if closed:
         if length(minus(pts[0],pts[-1]))>1e-6: raise ValueError('Not closed')
         incoming=unit(minus(pts[0],pts[-2]))
-        if length(minus(pts[0],pts[-2])) < model.conditioning_mm+model.recovery_mm:
-            # Smooth closed curves have tiny edges: don't extend a tangent
-            # off-contour. Start on contour without a conditioning lead.
-            lead=pts[0]
-        else:
-            lead=minus(pts[0],scale(incoming,model.conditioning_mm))
+        # Do not invent an off-contour lead for closed paths. Retrace the last
+        # edge for conditioning when long enough; otherwise start on-contour.
+        last_len=length(minus(pts[0],pts[-2]))
+        lead=minus(pts[0],scale(incoming,min(model.conditioning_mm,last_len)))
     else:
         lead=minus(pts[0],scale(unit(minus(pts[1],pts[0])),model.conditioning_mm))
     target=sample([lead,*pts],model.step_mm)
-    # Allow a trailing offset without altering conditioning start: converge to
-    # target after the conditioning run, while holding first point fixed.
+    # Pin each original vertex, including both sides of a closed seam.
+    vertex_indices=set()
+    for v in pts:
+        idx=min(range(len(target)),key=lambda i:length(minus(target[i],v)))
+        vertex_indices.add(idx)
     holder=list(target)
     for _ in range(model.iterations):
         predicted=forward(holder,model)
+        corrections=[]
+        for i,(p,t) in enumerate(zip(predicted,target)):
+            if i==0: corrections.append((0.,0.)); continue
+            weight=model.vertex_weight if i in vertex_indices else 1.
+            corrections.append(scale(minus(t,p),min(.9,.48+.11*weight)))
         revised=[]
-        for i,(h,p,t) in enumerate(zip(holder,predicted,target)):
+        for i,(h,t) in enumerate(zip(holder,target)):
             if i==0: revised.append(h); continue
-            delta=minus(t,p)
-            candidate=plus(h,scale(delta,.72))
+            c=corrections[i]
+            if i not in vertex_indices and 0<i<len(holder)-1:
+                c=plus(scale(c,.72),scale(plus(corrections[i-1],corrections[i+1]),.14))
+            candidate=plus(h,c)
             excursion=minus(candidate,t)
             if length(excursion)>model.max_correction_mm:
                 candidate=plus(t,scale(unit(excursion),model.max_correction_mm))
             revised.append(candidate)
         holder=revised
-    # Reject extreme commanded segment jumps or nonfinite values.
     if any(not all(math.isfinite(v) for v in p) for p in holder): raise ValueError('Nonfinite output')
     if max(length(minus(a,b)) for a,b in zip(holder,holder[1:]))>model.step_mm+2*model.max_correction_mm:
         raise ValueError('Discontinuous holder trajectory')

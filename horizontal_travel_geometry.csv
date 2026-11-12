@@ -1,9 +1,0 @@
-case,gap_mm,direction,approach,start_x,start_y,corner_x,corner_y,end_x,end_y
-plusX_0mm,0,+X,upper approach,22,19.0,22,27.0,44,27.0
-plusX_0mm,0,+X,lower approach,22,35.0,22,27.0,44,27.0
-minusX_0mm,0,-X,upper approach,91,19.0,91,27.0,69,27.0
-minusX_0mm,0,-X,lower approach,91,35.0,91,27.0,69,27.0
-plusX_2mm,2,+X,upper approach,22,60.0,22,68.0,44,68.0
-plusX_2mm,2,+X,lower approach,22,78.0,22,70.0,44,70.0
-minusX_2mm,2,-X,upper approach,91,60.0,91,68.0,69,68.0
-minusX_2mm,2,-X,lower approach,91,78.0,91,70.0,69,70.0

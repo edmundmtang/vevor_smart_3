@@ -111,3 +111,50 @@ Use separate material for each pattern; never cut both on same patch.
 Force 200, speed 100 unless your settings.txt differs.
 Keep additional blade-offset compensation disabled (0) to avoid double correction.
 Numbers are assigned by grid position; they are NOT cut into the material.
+
+======================================================================
+v0.21 CLEAN STATEFUL BLADE-TIP EXPERIMENT (2026-11-12)
+======================================================================
+The cutter above remains the guarded existing SVG-to-HPGL engine. The new
+experimental algorithm is in blade_tip_stateful.py and smart3_v021_grid.py.
+This is an offline experimental model, NOT a validated physical inverse.
+
+Generate the nine-case grid (four squares, opposing Ls, opposing diagonal Vs,
+circle, and two five-point stars rotated by 36 degrees):
+    py smart3_v021_grid.py
+
+Generate HPGL without sending any cutting data:
+    py smart3_cut.py v021_grid_experimental.svg --dry-run
+
+ONLY AFTER confirming origin, vinyl coverage and intended blade travel on
+scrap material, a guarded live run is possible:
+    py smart3_cut.py v021_grid_experimental.svg --cut --confirm-live-test I_ACCEPT_MOVEMENT
+
+Default model: blade offset .20 mm (unverified), X/Y rotation response 1/1,
+minimum approach X/Y .09/0 mm, recovery 1.39 mm, conditioning 3 mm,
+max correction .85 mm, vertex weight 2.5, 12 iterations.
+
+Parameter exploration without touching the main cutter:
+    py smart3_v021_grid.py --x-rotation 1.1 --y-rotation 1.0 --vertex-weight 3.0
+
+Important cautions:
+* The empirical parameters are NOT uniquely identified by existing test cuts.
+* The persistent lateral offset is an assumed symmetric split of the measured
+  opposing-path gap, not a directly measured absolute blade position.
+* Open paths may contain off-contour conditioning cuts. Use scrap vinyl.
+* The windowed direction model and inverse are heuristics; an accurate sharp
+  corner is not guaranteed. Watch for undercut, hooks and overcuts.
+* Keep --blade-offset-mm 0 and --loop-overlap-mm 0 on the cutter for this test
+  to avoid stacking independent compensation algorithms.
+* The generator uses the same nine-case geometry as v0.20. The generated
+  baseline is optional; it is not necessary to consume vinyl repeating it.
+* Existing settings.txt, USB guard, mat limits, and README history retained.
+
+Active files are deliberately lean: historical one-off geometry experiments,
+old blade-tip preview models, prior versions' generated SVGs and duplicated
+readmes have been omitted from this package. The previous ZIPs remain the
+historical archive. Existing loop_closure.py and blade_offset.py are retained
+because smart3_cut.py still imports/uses them for optional legacy behavior.
+
+Tests:
+    py -m unittest discover -p "test_*.py" -q
