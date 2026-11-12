@@ -19,6 +19,28 @@ SPEEDS = (50, 75, 100)
 PITCH_X, PITCH_Y = 35.0, 27.0
 START_X, START_Y = 14.0, 13.0
 APPROACH, MAIN = 6.0, 16.0
+# Cuttable cell IDs: 1..9, reading left-to-right, top-to-bottom.
+# Seven-segment numerals sit 7 mm beyond each main line, outside test geometry.
+DIGIT_SEGMENTS = {
+    'a': ((0,0),(4,0)), 'b': ((4,0),(4,3)),
+    'c': ((4,3),(4,6)), 'd': ((0,6),(4,6)),
+    'e': ((0,3),(0,6)), 'f': ((0,0),(0,3)),
+    'g': ((0,3),(4,3)),
+}
+DIGITS = {
+    1: 'bc', 2: 'abged', 3: 'abgcd',
+    4: 'fgbc', 5: 'afgcd', 6: 'afgecd',
+    7: 'abc', 8: 'abcdefg', 9: 'abfgcd',
+}
+
+
+def marker_paths(number, cx, cy):
+    """Small open pen strokes for a readable cut-in-vinyl numeral."""
+    x0, y0 = cx + MAIN + 7.0, cy - 3.0
+    return [[(x0+x1,y0+y1),(x0+x2,y0+y2)]
+            for segment in DIGITS[number]
+            for (x1,y1),(x2,y2) in [DIGIT_SEGMENTS[segment]]]
+
 
 
 def paths_at(cx, cy):
@@ -34,11 +56,13 @@ def build(settings):
     for ri, force in enumerate(FORCES):
         for ci, speed in enumerate(SPEEDS):
             cx, cy = START_X+ci*PITCH_X, START_Y+ri*PITCH_Y
+            number = ri * len(SPEEDS) + ci + 1
             paths = paths_at(cx,cy)
-            outlines.extend(paths)
+            labels = marker_paths(number,cx,cy)
+            outlines.extend(paths + labels)
             # PU ensures pen is lifted before changing parameters.
             commands.extend(['PU;', f'FS{force};', f'VS{speed};'])
-            for path in paths:
+            for path in paths + labels:
                 pts = []
                 for x,y in path:
                     tx = x*settings['x_scale']+settings['x_offset']
@@ -47,11 +71,11 @@ def build(settings):
                         raise ValueError('Invalid corrected geometry')
                     pt = (round(tx*UNITS_PER_MM),round(ty*UNITS_PER_MM))
                     if not pts or pt != pts[-1]: pts.append(pt)
-                if len(pts) != 3:
+                if len(pts) != len(path):
                     raise ValueError('Calibration segment collapsed after coordinate rounding')
                 commands.append(f'PU{pts[0][0]},{pts[0][1]};')
                 commands.extend(f'PD{x},{y};' for x,y in pts[1:])
-            records.append((f'R{ri+1}C{ci+1}',force,speed,cx,cy))
+            records.append((number,f'R{ri+1}C{ci+1}',force,speed,cx,cy))
     commands.extend(['PU;'] if settings['finish_mode']=='minimal' else ['PU0,0;','SP2;','PG;'])
     return '\n'.join(commands)+'\n', outlines, records
 
@@ -79,11 +103,12 @@ def main():
     args.output.write_text(hpgl,encoding='ascii')
     with args.manifest.open('w',newline='',encoding='utf-8') as f:
         writer=csv.writer(f)
-        writer.writerow(['cell','force','speed','corner_x_mm','main_y_mm','nominal_gap_mm','measured_settled_gap_mm','corner_recovery_mm','notes'])
-        for cell,force,speed,x,y in records:
-            writer.writerow([cell,force,speed,x,y,0,'','',''])
+        writer.writerow(['marker_number','cell','force','speed','corner_x_mm','main_y_mm','nominal_gap_mm','measured_settled_gap_mm','corner_recovery_mm','notes'])
+        for number,cell,force,speed,x,y in records:
+            writer.writerow([number,cell,force,speed,x,y,0,'','',''])
     print('Nine-cell mirrored-L grid: rows force 150/175/200, columns speed 50/75/100')
-    print('Each cell: two 3-vertex cuts, 0 mm nominal gap, 6 mm approaches, 16 mm main lines')
+    print('Cut-in-vinyl marker numbers 1..9 identify cells, left-to-right then top-to-bottom.')
+    print('Each cell: two 3-vertex cuts plus a separate numbered marker, 0 mm nominal gap')
     print(f'Physical bounds: X {physical[0]:.2f}..{physical[2]:.2f} mm; Y {physical[1]:.2f}..{physical[3]:.2f} mm')
     print(f'Corrected bounds: X {corrected[0]:.2f}..{corrected[2]:.2f} mm; Y {corrected[1]:.2f}..{corrected[3]:.2f} mm')
     print(f'HPGL: {args.output.resolve()} | Measurement sheet: {args.manifest.resolve()}')

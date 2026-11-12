@@ -66,3 +66,6 @@ v0.16 calibration addition: calibration_mirrored_l_gaps.svg, MIRRORED_L_GAP_TEST
 
 
 v0.17 compact horizontal travel-direction calibration: calibration_horizontal_travel_direction.svg, HORIZONTAL_TRAVEL_TEST_README.txt, horizontal_travel_geometry.csv and test_horizontal_travel.py. Four mirrored-L pairs (+X/-X x 0/2 mm gap), 115x100 mm canvas. Cutting logic unchanged. Future blade-tip tracking/overshoot idea documented but NOT implemented.
+
+Force/speed grid update: the standalone smart3_force_speed_grid.py now cuts
+numbered cell markers 1-9. See FORCE_SPEED_GRID_README.txt.
