@@ -67,5 +67,15 @@ v0.16 calibration addition: calibration_mirrored_l_gaps.svg, MIRRORED_L_GAP_TEST
 
 v0.17 compact horizontal travel-direction calibration: calibration_horizontal_travel_direction.svg, HORIZONTAL_TRAVEL_TEST_README.txt, horizontal_travel_geometry.csv and test_horizontal_travel.py. Four mirrored-L pairs (+X/-X x 0/2 mm gap), 115x100 mm canvas. Cutting logic unchanged. Future blade-tip tracking/overshoot idea documented but NOT implemented.
 
-Force/speed grid update: the standalone smart3_force_speed_grid.py now cuts
-numbered cell markers 1-9. See FORCE_SPEED_GRID_README.txt.
+v0.18 OFFLINE BLADE-TIP ALGORITHM PROTOTYPE
+==========================================
+See BLADE_TIP_V018_README.txt. New: blade_tip_model.py,
+smart3_blade_tip_preview.py, test_blade_tip_model.py. The existing
+smart3_cut.py live-cutting path and v0.17 behavior are UNCHANGED.
+This prototype does NOT generate HPGL or send USB data.
+
+v0.19 EXPERIMENTAL COMPACT TEST (offline generator; existing cutter unchanged)
+--------------------------------------------------------------------------
+See V019_EXPERIMENTAL_README.txt. Run py smart3_v019_compact.py to generate
+baseline and experimental SVGs. Compare on scrap vinyl, dry-run first.
+This is a bounded empirical inverse-path prototype, NOT calibrated compensation.
