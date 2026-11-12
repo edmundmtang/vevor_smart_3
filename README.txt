@@ -158,3 +158,22 @@ because smart3_cut.py still imports/uses them for optional legacy behavior.
 
 Tests:
     py -m unittest discover -p "test_*.py" -q
+
+
+V0.22 CORNER-CONTACT DIAGNOSTICS (CURRENT)
+-----------------------------------------
+Run py smart3_v022_grid.py then dry-run v022_grid_experimental.svg.
+Cells 1-2: identical squares retained as repeatability/placement controls.
+Cells 3-4: opposing 90-degree corners, second rotated 90 degrees.
+Cell 5: opposing Ls (unchanged); cell 6: opposing 45-degree corners
+(unchanged and nominally touching at the center); cell 7: circle;
+cells 8-9: five-point stars at 0 and 36 degrees.
+
+The inverse model now permits a small ADDITIONAL bounded correction around
+actual geometric vertices, scaled by turn angle. It does not add a hard-coded
+corner overshoot or promise closure. Default corner-extra 0.25 mm; maximum
+correction at a 90-degree vertex is 0.85+0.25=1.10 mm. The actual blade-tip
+model is still phenomenological and unvalidated. Off-contour cuts possible.
+
+Run baseline only if desired; do not use the cutter's separate --blade-offset-mm
+or --loop-overlap-mm on these generated compensated SVGs.

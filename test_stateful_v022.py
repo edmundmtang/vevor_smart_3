@@ -1,10 +1,16 @@
 import math, unittest
 from blade_tip_stateful import Model, forward, inverse
-from smart3_v021_grid import cases
-class StatefulV021Tests(unittest.TestCase):
+from smart3_v022_grid import cases
+class StatefulV022Tests(unittest.TestCase):
  def test_nine_cells(self):
   self.assertEqual(len(cases()),9)
-  self.assertEqual(sum(len(x) for x in cases()),11)
+  self.assertEqual(sum(len(x) for x in cases()),13)
+ def test_two_squares_and_four_corner_pairs(self):
+  self.assertEqual([len(g) for g in cases()],[1,1,2,2,2,2,1,1,1])
+  for idx in [2,3,5]:
+   self.assertEqual(cases()[idx][0][1],cases()[idx][1][1])
+ def test_corner_cap_bounds(self):
+  with self.assertRaises(ValueError): Model(corner_extra_mm=.6)
  def test_all_inverse_paths_finite(self):
   for group in cases():
    for p in group:

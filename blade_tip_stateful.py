@@ -33,7 +33,8 @@ class Model:
     step_mm: float=0.15
     max_correction_mm: float=0.65
     iterations: int=12
-    vertex_weight: float=2.5
+    vertex_weight: float=3.0
+    corner_extra_mm: float=0.25
     def __post_init__(self):
         for v in vars(self).values():
             if not math.isfinite(v): raise ValueError('Nonfinite model parameter')
@@ -41,7 +42,7 @@ class Model:
                 .2<=self.x_rotation<=3 and .2<=self.y_rotation<=3 and
                 0<=self.min_approach_x_mm<=.4 and 0<=self.min_approach_y_mm<=.4 and
                 0<=self.conditioning_mm<=8 and .05<=self.step_mm<=.5 and
-                0<self.max_correction_mm<=1.5 and 1<=self.iterations<=25 and 1<=self.vertex_weight<=5):
+                0<self.max_correction_mm<=1.5 and 0<=self.corner_extra_mm<=0.5 and 1<=self.iterations<=25 and 1<=self.vertex_weight<=5):
             raise ValueError('Model parameter outside experimental safety bounds')
 
 def sample(points,step):
@@ -125,9 +126,26 @@ def inverse(points,model,closed=False):
     target=sample([lead,*pts],model.step_mm)
     # Pin each original vertex, including both sides of a closed seam.
     vertex_indices=set()
-    for v in pts:
+    vertex_angles={}
+    for j,v in enumerate(pts):
         idx=min(range(len(target)),key=lambda i:length(minus(target[i],v)))
         vertex_indices.add(idx)
+        if 0<j<len(pts)-1:
+            a=minus(pts[j],pts[j-1]); b=minus(pts[j+1],pts[j])
+            if length(a)>1e-8 and length(b)>1e-8:
+                angle=abs(math.atan2(cross(unit(a),unit(b)),sum(x*y for x,y in zip(unit(a),unit(b)))))
+                vertex_angles[idx]=max(vertex_angles.get(idx,0.),angle)
+    # Increase permissible correction near genuine geometric corners only.
+    # This is NOT a hard-coded corner orientation or a guaranteed physical correction.
+    corner_caps=[model.max_correction_mm]*len(target)
+    radius=max(model.recovery_mm,model.step_mm)
+    for idx,angle in vertex_angles.items():
+        if angle<math.radians(15): continue
+        extra=model.corner_extra_mm*min(1.,angle/(math.pi/2))
+        for k in range(max(0,idx-12),min(len(target),idx+13)):
+            distance=length(minus(target[k],target[idx]))
+            if distance<radius:
+                corner_caps[k]=max(corner_caps[k],model.max_correction_mm+extra*(1-distance/radius))
     holder=list(target)
     for _ in range(model.iterations):
         predicted=forward(holder,model)
@@ -144,11 +162,11 @@ def inverse(points,model,closed=False):
                 c=plus(scale(c,.72),scale(plus(corrections[i-1],corrections[i+1]),.14))
             candidate=plus(h,c)
             excursion=minus(candidate,t)
-            if length(excursion)>model.max_correction_mm:
-                candidate=plus(t,scale(unit(excursion),model.max_correction_mm))
+            if length(excursion)>corner_caps[i]:
+                candidate=plus(t,scale(unit(excursion),corner_caps[i]))
             revised.append(candidate)
         holder=revised
     if any(not all(math.isfinite(v) for v in p) for p in holder): raise ValueError('Nonfinite output')
-    if max(length(minus(a,b)) for a,b in zip(holder,holder[1:]))>model.step_mm+2*model.max_correction_mm:
+    if max(length(minus(a,b)) for a,b in zip(holder,holder[1:]))>model.step_mm+2*(model.max_correction_mm+model.corner_extra_mm):
         raise ValueError('Discontinuous holder trajectory')
     return holder
