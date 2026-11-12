@@ -20,7 +20,7 @@ class ClosureModeTests(unittest.TestCase):
         a,b,c = out[0],out[1],out[-1]
         self.assertAlmostEqual((b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]),0)
     def test_too_long_skips(self):
-        out,msg = add_same_path_overlap(SQUARE,12)
+        out,msg = add_same_path_overlap(SQUARE,40)
         self.assertEqual(out,SQUARE)
         self.assertIn('skipped',msg)
     def test_open_untouched(self):

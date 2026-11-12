@@ -86,24 +86,36 @@ def relocate(outline, mode='original', min_straight=0.5, max_turn_degrees=5.0):
 
 
 def add_same_path_overlap(outline, distance_mm):
-    """Append a point along the FIRST existing segment; never leave the contour.
+    """Retrace a closed contour by arc length, including across short segments.
 
-    Reject overlaps longer than the first segment rather than crossing corners.
-    A closed path must have at least three distinct vertices. Returns (path, status).
+    A zero-length/degenerate contour or overlap >= full perimeter is rejected.
+    The overlap is appended as original vertices plus a final interpolated point.
     """
     pts = list(outline)
-    if distance_mm == 0:
-        return pts, 'disabled'
     if not math.isfinite(distance_mm) or distance_mm < 0:
         raise ValueError('Overlap must be finite and nonnegative')
+    if distance_mm == 0:
+        return pts, 'disabled'
     if len(pts) < 4 or math.dist(pts[0], pts[-1]) > 1e-7:
         return pts, 'open/unchanged'
-    first, second = pts[0], pts[1]
-    length = math.dist(first, second)
-    if length < 1e-9:
-        return pts, 'degenerate/unchanged'
-    if distance_mm > length + 1e-8:
-        return pts, f'overlap skipped: first segment {length:.3f} mm shorter than {distance_mm:.3f} mm'
-    t = min(1.0, distance_mm/length)
-    end = (first[0]+t*(second[0]-first[0]), first[1]+t*(second[1]-first[1]))
-    return pts + [end], f'overlap {distance_mm:.3f} mm'
+    lengths = [math.dist(a,b) for a,b in zip(pts,pts[1:])]
+    perimeter = sum(lengths)
+    if perimeter < 1e-8 or distance_mm >= perimeter - 1e-8:
+        return pts, f'overlap skipped: requested {distance_mm:.3f} mm >= perimeter {perimeter:.3f} mm'
+    remaining = distance_mm
+    appended = []
+    traversed = 0
+    for a,b,length in zip(pts,pts[1:],lengths):
+        if length < 1e-10:
+            continue
+        traversed += 1
+        if remaining >= length - 1e-10:
+            appended.append(b)
+            remaining -= length
+            if remaining <= 1e-10:
+                break
+        else:
+            t = remaining / length
+            appended.append((a[0]+t*(b[0]-a[0]), a[1]+t*(b[1]-a[1])))
+            break
+    return pts + appended, f'overlap {distance_mm:.3f} mm across {traversed} segment(s)'

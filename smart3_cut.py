@@ -344,7 +344,11 @@ def main():
     parser.add_argument('--contour-modes', type=Path,
                         help='Optional JSON map of zero-based path indices to per-contour cut strategy')
     parser.add_argument('--loop-overlap-mm', type=float, default=0.0,
-                        help='Same-path overlap along first edge (mm); default disabled, skip if edge too short')
+                        help='Retrace the start of the closed contour across multiple segments (mm); default disabled')
+    parser.add_argument('--blade-offset-mm', type=float, default=0.0,
+                        help='EXPERIMENTAL: drag-knife holder path offset in mm (0..2); 0 disables')
+    parser.add_argument('--blade-arc-step-deg', type=float, default=10.0,
+                        help='Max angular step for holder pivot arcs (1..45 degrees)')
     parser.add_argument('--lead-in-mm', type=float, default=0.0,
                         help='Reserved: off-contour lead-ins NOT implemented; nonzero is rejected')
     parser.add_argument('--dry-run' , action='store_true', help='Generate HPGL only; no USB data sent')
@@ -395,19 +399,23 @@ def main():
                     raise ValueError(f'Invalid contour strategy {mode!r} at index {k}')
                 modes[int(k)] = mode
         from loop_closure import relocate, add_same_path_overlap
+        from blade_offset import compensate
         processed, counts = [], {}
         for index, outline in enumerate(outlines):
             mode = modes.get(index, args.cut_strategy)
             new, seam_info = relocate(outline, args.loop_start, args.min_loop_straight,
                                       args.loop_turn_tolerance)
             new, overlap_info = add_same_path_overlap(new, args.loop_overlap_mm)
+            new, blade_info = compensate(new, args.blade_offset_mm, args.blade_arc_step_deg)
             processed.append(new)
-            key = (mode, seam_info, overlap_info)
+            key = (mode, seam_info, overlap_info, blade_info)
             counts[key] = counts.get(key, 0) + 1
         outlines = processed
         print('Closure diagnostics (all strategies currently prohibit off-contour lead-ins):')
-        for (mode, seam_info, overlap_info), count in sorted(counts.items()):
-            print(f'  {count} path(s): {mode}; {seam_info}; {overlap_info}')
+        for (mode, seam_info, overlap_info, blade_info), count in sorted(counts.items()):
+            print(f'  {count} path(s): {mode}; {seam_info}; {overlap_info}; blade: {blade_info}')
+        if args.blade_offset_mm > 0:
+            print('WARNING: EXPERIMENTAL blade-offset holder compensation; pivot arcs leave the nominal contour. Not strict no-waste; inspect HPGL before live cutting.')
         physical_bounds = get_physical_bounds(outlines)
         hpgl,bounds = make_hpgl(outlines,settings)
         check_mat_limits(physical_bounds, bounds, settings)
@@ -418,7 +426,7 @@ def main():
         for key in ALL_KEYS: print(f'{key}: {str(settings[key]).lower() if key in BOOLEAN_KEYS else settings[key]}')
         print(f'Live USB cutting: SP1;FS{settings["cut_force"]};VS{settings["cut_speed"]};')
         print('Live USB ending: ' + ('PU; only (experimental)' if settings['finish_mode'] == 'minimal' else 'PU0,0;SP2;PU0,0;PG;'))
-        print(f'Paths: {len(outlines)}; default strategy: {args.cut_strategy}; loop start: {args.loop_start}; requested overlap: {args.loop_overlap_mm} mm')
+        print(f'Paths: {len(outlines)}; default strategy: {args.cut_strategy}; loop start: {args.loop_start}; requested overlap: {args.loop_overlap_mm} mm; blade offset: {args.blade_offset_mm} mm')
         print(f'Physical SVG bounds (mm): X {physical_bounds[0]:.3f}..{physical_bounds[2]:.3f}, Y {physical_bounds[1]:.3f}..{physical_bounds[3]:.3f}')
         print(f'Physical mat limits (mm): X 0..{settings["mat_width_mm"]:.3f}, Y 0..{settings["mat_height_mm"]:.3f}')
         print(f'Corrected bounds (mm): X {bounds[0]:.3f}..{bounds[2]:.3f}, Y {bounds[1]:.3f}..{bounds[3]:.3f}')
