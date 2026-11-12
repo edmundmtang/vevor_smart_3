@@ -79,3 +79,35 @@ v0.19 EXPERIMENTAL COMPACT TEST (offline generator; existing cutter unchanged)
 See V019_EXPERIMENTAL_README.txt. Run py smart3_v019_compact.py to generate
 baseline and experimental SVGs. Compare on scrap vinyl, dry-run first.
 This is a bounded empirical inverse-path prototype, NOT calibrated compensation.
+
+
+V0.20 STATEFUL BLADE-TIP GRID (EXPERIMENTAL)
+----------------------------------------
+Run: py smart3_v020_grid.py
+Creates v020_grid_baseline.svg and v020_grid_experimental.svg.
+Nine cells (row-major): 1-4 squares; 5 opposing horizontal Ls;
+6 opposing diagonal corners; 7 circle; 8 star 0 degrees;
+9 star 36 degrees. Two paths in cells 5 and 6.
+Grid 124 x 111 mm, three rows x three columns.
+
+Model: finite-recovery orientation response, X/Y rotation parameters,
+and signed persistent approach offset (default 0.09 mm X, 0 mm Y).
+Iterative sampled inverse estimates holder commands from desired blade cuts.
+No per-corner lookup table. Rotation parameters and physical offset are
+UNIDENTIFIED experimental guesses, not calibrated physical measurements.
+The model is phenomenological and the inverse is not validated on hardware.
+Closed polygons start with a same-edge conditioning segment; finely sampled
+closed curves start without a lead-in to avoid a tangent excursion. Open shapes
+use off-contour lead-ins. Curves are also compensated, unlike v0.19.
+The SVG generator never sends USB data. Off-contour cuts can damage artwork.
+
+First run: py smart3_v020_grid.py
+Then: py smart3_cut.py v020_grid_baseline.svg --dry-run
+      py smart3_cut.py v020_grid_experimental.svg --dry-run
+Only on sacrificial material, with origin and mat placement checked, use:
+      py smart3_cut.py v020_grid_baseline.svg --cut --confirm-live-test I_ACCEPT_MOVEMENT
+      py smart3_cut.py v020_grid_experimental.svg --cut --confirm-live-test I_ACCEPT_MOVEMENT
+Use separate material for each pattern; never cut both on same patch.
+Force 200, speed 100 unless your settings.txt differs.
+Keep additional blade-offset compensation disabled (0) to avoid double correction.
+Numbers are assigned by grid position; they are NOT cut into the material.

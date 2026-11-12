@@ -1,0 +1,15 @@
+v0.20 compact 3x3 comparison
+
+       Column 1         Column 2           Column 3
+Row 1  1 square         2 square           3 square
+Row 2  4 square         5 horizontal Ls    6 diagonal corners
+Row 3  7 circle         8 star (0 deg)     9 star (36 deg)
+
+Compare baseline vs experimental on fresh scrap sheets. For each cell,
+note outward flaps, corner rounding, closure, and any unintended entry cuts.
+The star shapes have five convex outer tips separated by concave notches.
+For a strictly convex polygon instead of a five-point star, geometry would
+need to be changed; this is the conventional star silhouette.
+
+The model's X/Y rotation response and residual offsets are adjustable.
+Do not interpret the defaults as experimentally calibrated.
