@@ -3,7 +3,7 @@ Offline generator only. No USB activity. Dimensions in mm.
 """
 import argparse, math, xml.etree.ElementTree as ET
 from pathlib import Path
-from blade_tip_stateful import Model,inverse
+from blade_tip_stateful import Model,inverse,forward,sample,length,minus
 from smart3_cut import parse_svg
 NS='http://www.w3.org/2000/svg'
 
@@ -47,7 +47,7 @@ def save(path,groups,w=124,h=111):
     ET.ElementTree(root).write(path,encoding='utf-8',xml_declaration=True)
 
 def main():
-    p=argparse.ArgumentParser(description='v0.22 offline 3x3 test grid')
+    p=argparse.ArgumentParser(description='v0.24 offline 3x3 test grid')
     p.add_argument('--output-dir',type=Path,default=Path('.'))
     p.add_argument('--recovery-mm',type=float,default=1.39)
     p.add_argument('--blade-offset-mm',type=float,default=.20)
@@ -59,17 +59,19 @@ def main():
     p.add_argument('--max-correction-mm',type=float,default=.85)
     p.add_argument('--iterations',type=int,default=12)
     p.add_argument('--vertex-weight',type=float,default=3.0)
-    p.add_argument('--corner-extra-mm',type=float,default=.25)
+    p.add_argument('--corner-extra-mm',type=float,default=.10)
+    p.add_argument('--y-history-mm',type=float,default=0.0,help='Experimental signed Y-memory amplitude; default 0')
     a=p.parse_args()
     model=Model(recovery_mm=a.recovery_mm,blade_offset_mm=a.blade_offset_mm,
                 x_rotation=a.x_rotation,y_rotation=a.y_rotation,
                 min_approach_x_mm=a.min_approach_x_mm,min_approach_y_mm=a.min_approach_y_mm,
                 conditioning_mm=a.conditioning_mm,max_correction_mm=a.max_correction_mm,
-                iterations=a.iterations,vertex_weight=a.vertex_weight,corner_extra_mm=a.corner_extra_mm)
+                iterations=a.iterations,vertex_weight=a.vertex_weight,corner_extra_mm=a.corner_extra_mm,y_history_mm=a.y_history_mm)
     original=cases()
+    print('Y-history correction:',a.y_history_mm,'mm (0 means disabled)')
     experimental=[[inverse(path,model,closed=(math.dist(path[0],path[-1])<1e-7)) for path in group] for group in original]
     a.output_dir.mkdir(parents=True,exist_ok=True)
-    files=[a.output_dir/'v022_grid_baseline.svg',a.output_dir/'v022_grid_experimental.svg']
+    files=[a.output_dir/'v024_grid_baseline.svg',a.output_dir/'v024_grid_experimental.svg']
     for filename,groups in zip(files,(original,experimental)):
         save(filename,groups)
         parsed=parse_svg(filename)
@@ -77,4 +79,5 @@ def main():
         if any(not(0<=x<=124 and 0<=y<=111) for path in parsed for x,y in path): raise ValueError('Out of bounds')
         print(filename,'paths',len(parsed))
     print('Experimental: may cut off-contour. Dry-run both SVGs before live cutting.')
+    print('Diagnostics: compensation does not guarantee physical improvement.')
 if __name__=='__main__':main()

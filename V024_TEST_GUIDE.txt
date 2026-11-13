@@ -1,0 +1,20 @@
+v0.24 — conservative rollback and guarded inverse fit
+
+The v0.23 0.225 mm Y-history term is DISABLED by default.
+The v0.22 stable predictor is restored, with a reduced corner excursion
+allowance (0.10 mm) and an inverse solver that retains its lowest-error
+iteration under its own forward predictor. Optional bounded smooth signed
+Y memory is available for future controlled experiments, not enabled.
+
+1. py smart3_v024_grid.py
+2. py smart3_cut.py v024_grid_experimental.svg --dry-run
+3. Inspect generated HPGL, mat placement and bounds.
+4. On scrap only: py smart3_cut.py v024_grid_experimental.svg --cut --confirm-live-test I_ACCEPT_MOVEMENT
+
+Force 200, speed 100; separate blade-offset and loop overlap at 0.
+Test cells are the SAME geometry as v0.22 and v0.23.
+Cases 4 and 6: compare vertical gaps. Cases 7-9: inspect wobble.
+Cases 1-2: check loop closure and dimensions. Case 3: watch collision.
+
+This is a conservative stability fix, not a validated cure for the
+0.45 mm gap. No machine X/Y scale changes. No USB commands from generator.
