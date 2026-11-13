@@ -1,0 +1,108 @@
+"""Nine compact test cases in a 3x3 grid; baseline and stateful compensated SVGs.
+Offline generator only. No USB activity. Dimensions in mm.
+"""
+import argparse, math, xml.etree.ElementTree as ET
+from pathlib import Path
+from blade_tip_stateful import Model,inverse,forward,sample,length,minus
+from smart3_cut import parse_svg
+from geometry_scaling import scale_group
+NS='http://www.w3.org/2000/svg'
+
+def star(cx,cy,r=8.5,rotation=0):
+    # Five pointed convex tips connected through concave notches (star polygon).
+    # The requested convex geometry is represented by the five outward tips.
+    return [(cx+(r if i%2==0 else r*.48)*math.cos(rotation-math.pi/2+i*math.pi/5),
+             cy+(r if i%2==0 else r*.48)*math.sin(rotation-math.pi/2+i*math.pi/5)) for i in range(10)]+[(cx+r*math.cos(rotation-math.pi/2),cy+r*math.sin(rotation-math.pi/2))]
+
+def cases():
+    # 3x3 cells: two squares, four opposing corner tests,
+    # a circular control, and two rotated five-point stars.
+    positions=[(22+36*c,21+35*r) for r in range(3) for c in range(3)]
+    result=[]
+    for i,(cx,cy) in enumerate(positions):
+        if i<2:
+            a=8; result.append([[(cx-a,cy-a),(cx+a,cy-a),(cx+a,cy+a),(cx-a,cy+a),(cx-a,cy-a)]])
+        elif i==2:
+            # Opposing 90-degree turns meeting at one intended vertex.
+            result.append([[(cx-10,cy-9),(cx,cy),(cx,cy+9)],
+                           [(cx+10,cy+9),(cx,cy),(cx,cy-9)]])
+        elif i==3:
+            # Same nominal contact, rotated 90 degrees.
+            result.append([[(cx-9,cy+10),(cx,cy),(cx+9,cy)],
+                           [(cx+9,cy-10),(cx,cy),(cx-9,cy)]])
+        elif i==4:
+            result.append([[(cx-10,cy-10),(cx-10,cy-2),(cx+10,cy-2)],[(cx-10,cy+10),(cx-10,cy+2),(cx+10,cy+2)]])
+        elif i==5:
+            result.append([[(cx-10,cy-9),(cx,cy),(cx+10,cy-9)],[(cx-10,cy+9),(cx,cy),(cx+10,cy+9)]])
+        elif i==6:
+            result.append([[(cx+9*math.cos(2*math.pi*j/120),cy+9*math.sin(2*math.pi*j/120)) for j in range(121)]])
+        elif i==7: result.append([star(cx,cy,8.5,0)])
+        else: result.append([star(cx,cy,8.5,math.pi/5)])
+    return result
+
+def save(path,groups,w=124,h=111):
+    root=ET.Element('svg',{'xmlns':NS,'width':f'{w}mm','height':f'{h}mm','viewBox':f'0 0 {w} {h}'})
+    for paths in groups:
+        for pts in paths:
+            ET.SubElement(root,'polyline',{'points':' '.join(f'{x:.5f},{y:.5f}' for x,y in pts),'fill':'none','stroke':'black','stroke-width':'0.1'})
+    ET.ElementTree(root).write(path,encoding='utf-8',xml_declaration=True)
+
+def main():
+    p=argparse.ArgumentParser(description='v0.29 offline 3x3 test grid')
+    p.add_argument('--output-dir',type=Path,default=Path('.'))
+    p.add_argument('--gap-only',action='store_true',help='Only cases 4 and 6; uses less material')
+    p.add_argument('--recovery-mm',type=float,default=1.39)
+    p.add_argument('--blade-offset-mm',type=float,default=.20)
+    p.add_argument('--x-rotation',type=float,default=1.)
+    p.add_argument('--y-rotation',type=float,default=1.)
+    p.add_argument('--min-approach-x-mm',type=float,default=.09)
+    p.add_argument('--min-approach-y-mm',type=float,default=0.)
+    p.add_argument('--conditioning-mm',type=float,default=3.)
+    p.add_argument('--max-correction-mm',type=float,default=.85)
+    p.add_argument('--iterations',type=int,default=12)
+    p.add_argument('--vertex-weight',type=float,default=3.0)
+    p.add_argument('--corner-extra-mm',type=float,default=.10)
+    p.add_argument('--corner-apex-mm',type=float,default=0.0,help='Optional outward apex target extension (0..0.30 mm); default off')
+    p.add_argument('--isolate-history',action='store_true',help='Drive Y history from intended path, not holder excursions')
+    p.add_argument('--apex-taper-mm',type=float,default=0.0,help='Finite support smooth apex taper (0 disables)')
+    p.add_argument('--y-history-mm',type=float,default=0.0,help='Signed experimental Y-memory amplitude (-0.400 to +0.225 mm); default 0')
+    p.add_argument('--geometry-scale-x',type=float,default=1.0,
+                   help='Scale intended X geometry around each cell center before compensation (default 1)')
+    p.add_argument('--geometry-scale-y',type=float,default=1.0,
+                   help='Scale intended Y geometry around each cell center before compensation (default 1)')
+    p.add_argument('--trial-square-dimension-factors',action='store_true',
+                   help='Use 16/15.65 X and 16/15.47 Y from one physical square; trial only')
+    a=p.parse_args()
+    if a.trial_square_dimension_factors:
+        if a.geometry_scale_x != 1.0 or a.geometry_scale_y != 1.0:
+            p.error('Trial square factors cannot be combined with explicit geometry scales')
+        a.geometry_scale_x=16/15.65
+        a.geometry_scale_y=16/15.47
+    model=Model(recovery_mm=a.recovery_mm,blade_offset_mm=a.blade_offset_mm,
+                x_rotation=a.x_rotation,y_rotation=a.y_rotation,
+                min_approach_x_mm=a.min_approach_x_mm,min_approach_y_mm=a.min_approach_y_mm,
+                conditioning_mm=a.conditioning_mm,max_correction_mm=a.max_correction_mm,
+                iterations=a.iterations,vertex_weight=a.vertex_weight,corner_extra_mm=a.corner_extra_mm,corner_apex_mm=a.corner_apex_mm,y_history_mm=a.y_history_mm,
+                isolate_history=a.isolate_history,apex_taper_mm=a.apex_taper_mm)
+    original=cases()
+    if a.gap_only: original=[original[3],original[5]]
+    desired=[scale_group(group,a.geometry_scale_x,a.geometry_scale_y) for group in original]
+    print(f'Geometry scale X={a.geometry_scale_x:.6f}, Y={a.geometry_scale_y:.6f} (before blade compensation)')
+    print('Nominal square target: 16.00 x 16.00 mm; scaled target: '
+          f'{16*a.geometry_scale_x:.4f} x {16*a.geometry_scale_y:.4f} mm')
+    print('Y-history correction:',a.y_history_mm,'mm (0 means disabled)')
+    print('Corner apex extension:',a.corner_apex_mm,'mm (0 means disabled)')
+    print('History isolation:',a.isolate_history,'apex taper:',a.apex_taper_mm)
+    if a.y_history_mm: print('WARNING: physical Y-history correction is experimentally supported only for selected gap tests')
+    experimental=[[inverse(path,model,closed=(math.dist(path[0],path[-1])<1e-7)) for path in group] for group in desired]
+    a.output_dir.mkdir(parents=True,exist_ok=True)
+    files=[a.output_dir/'v029_grid_baseline.svg',a.output_dir/'v029_grid_experimental.svg']
+    for filename,groups in zip(files,(desired,experimental)):
+        save(filename,groups)
+        parsed=parse_svg(filename)
+        if len(parsed)!=(4 if a.gap_only else 13): raise ValueError(f'Unexpected path count {len(parsed)}')
+        if any(not(0<=x<=124 and 0<=y<=111) for path in parsed for x,y in path): raise ValueError('Out of bounds')
+        print(filename,'paths',len(parsed))
+    print('Experimental: may cut off-contour. Dry-run both SVGs before live cutting.')
+    print('Diagnostics: compensation does not guarantee physical improvement.')
+if __name__=='__main__':main()

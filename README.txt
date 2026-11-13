@@ -225,3 +225,9 @@ inverse model (default 0). Outward vertex targets are capped at 0.30 mm
 and 15% of adjacent edge lengths. The v0.27 -0.300 mm Y-history setting
 is held fixed in three gap-only SVG variants. No general cutter-side
 blade-tip compensation or machine calibration changes are made.
+
+v0.29 experimental update:
+  See V029_TEST_GUIDE.txt and smart3_v029_grid.py.
+  Added Model.isolate_history (default False) and apex_taper_mm (default 0).
+  These are offline experimental options only; general SVG blade-tip
+  compensation remains unvalidated and is not enabled by default.

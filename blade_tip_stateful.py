@@ -41,14 +41,18 @@ class Model:
     # Negative magnitudes down to -0.40 are allowed ONLY for the v0.27 offline sweep.
     y_history_mm: float=0.0
     history_recovery_mm: float=1.39
+    # Experimental: isolate signed history from inverse holder excursions.
+    isolate_history: bool=False
+    # Finite-support taper of apex excursion along adjacent legs.
+    apex_taper_mm: float=0.0
     def __post_init__(self):
         for v in vars(self).values():
-            if not math.isfinite(v): raise ValueError('Nonfinite model parameter')
+            if not isinstance(v,bool) and not math.isfinite(v): raise ValueError('Nonfinite model parameter')
         if not (.2<=self.recovery_mm<=5 and 0<=self.blade_offset_mm<=1 and
                 .2<=self.x_rotation<=3 and .2<=self.y_rotation<=3 and
                 0<=self.min_approach_x_mm<=.4 and 0<=self.min_approach_y_mm<=.4 and
                 0<=self.conditioning_mm<=8 and .05<=self.step_mm<=.5 and
-                0<self.max_correction_mm<=1.5 and 0<=self.corner_extra_mm<=0.5 and 0<=self.corner_apex_mm<=0.30 and -.40<=self.y_history_mm<=.25 and .2<=self.history_recovery_mm<=5 and 1<=self.iterations<=25 and 1<=self.vertex_weight<=5):
+                0<self.max_correction_mm<=1.5 and 0<=self.corner_extra_mm<=0.5 and 0<=self.corner_apex_mm<=0.30 and 0<=self.apex_taper_mm<=1.0 and -.40<=self.y_history_mm<=.25 and .2<=self.history_recovery_mm<=5 and 1<=self.iterations<=25 and 1<=self.vertex_weight<=5):
             raise ValueError('Model parameter outside experimental safety bounds')
 
 def sample(points,step):
@@ -75,19 +79,23 @@ def _direction_at(points, i, window_mm=0.45):
         d=minus(points[min(i+1,len(points)-1)],points[max(i-1,0)])
     return unit(d)
 
-def forward(holder, model):
+def forward(holder, model, history_reference=None):
     """Stateful phenomenological predictor, with finite turn response and held bias.
 
     Uses an angular interpolation (safe for reversals) and a spatially averaged
     holder tangent. This is a predictive hypothesis, not a measured blade model.
     """
     if len(holder)<2: raise ValueError('Need two holder positions')
+    if history_reference is not None and len(history_reference)!=len(holder):
+        raise ValueError('History reference must match holder sampling')
     directions=[_direction_at(holder,i) for i in range(len(holder))]
     orientation=directions[0]; previous=directions[0]; side=0.
     from_angle=math.atan2(orientation[1],orientation[0]); to_angle=from_angle
     elapsed=model.recovery_mm
     result=[]
     y_state=0.0
+    history_path=holder if history_reference is None else history_reference
+    history_directions=directions if history_reference is None else [_direction_at(history_path,i) for i in range(len(holder))]
     for i,h in enumerate(holder):
         t=directions[i]
         if i:
@@ -117,17 +125,17 @@ def forward(holder, model):
             # Integrate the *signed physical Y travel*, not the noisy tangent
             # direction. Hold the state when Y travel stops. Unlike a binary
             # sign flip, this response is continuous across reversals.
-            dy=h[1]-holder[i-1][1]
+            dy=history_path[i][1]-history_path[i-1][1]
             if abs(dy)>1e-10:
                 y_state=max(-1.,min(1.,y_state+dy/model.history_recovery_mm))
             # Restrict the added lateral error to nearly horizontal motion.
             # Smooth gating avoids abrupt transitions at curved/star vertices.
-            horizontal=smooth(max(0.,(abs(t[0])-.65)/.35))
+            horizontal=smooth(max(0.,(abs(history_directions[i][0])-.65)/.35))
             tip=(tip[0],tip[1]+model.y_history_mm*y_state*horizontal)
         result.append(tip)
     return result
 
-def apex_targets(points, amount_mm, closed=False):
+def apex_targets(points, amount_mm, closed=False, taper_mm=0.0):
     """Optional finite vertex extension along the exterior angle bisector.
 
     Only genuine turns >=30 degrees are modified. A straight run, endpoints,
@@ -181,6 +189,43 @@ def inverse(points,model,closed=False):
         lead=minus(pts[0],scale(unit(minus(pts[1],pts[0])),model.conditioning_mm))
     fitted_pts=apex_targets(pts,model.corner_apex_mm,closed=closed)
     target=sample([lead,*fitted_pts],model.step_mm)
+    # The unmodified intended path supplies history during inverse optimization.
+    # Match the same sample count using arc-length parameterization rather than
+    # introducing artificial Y motion from an extended corner apex.
+    def resample_to_count(polyline, count):
+        cumulative=[0.]
+        for a,b in zip(polyline,polyline[1:]):
+            cumulative.append(cumulative[-1]+length(minus(b,a)))
+        total=cumulative[-1]
+        if total<=1e-9: raise ValueError("Degenerate history reference")
+        result=[]; j=0
+        for i in range(count):
+            at=total*i/(count-1)
+            while j<len(cumulative)-2 and cumulative[j+1]<at: j+=1
+            fraction=(at-cumulative[j])/max(1e-12,cumulative[j+1]-cumulative[j])
+            result.append(mix(polyline[j],polyline[j+1],fraction))
+        return result
+    history_reference=resample_to_count([lead,*pts],len(target)) if model.isolate_history else None
+    # Localize apex displacement with a finite-support taper on both legs.
+    # The target is smoothly deformed near vertices instead of introducing a
+    # single sharp excursion, which can cause a flap on the outgoing leg.
+    if model.apex_taper_mm and model.corner_apex_mm:
+        base=resample_to_count([lead,*pts],len(target))
+        target=list(base)
+        for j in range(1,len(pts)-(1 if closed else 1)):
+            if j>=len(fitted_pts): continue
+            delta=minus(fitted_pts[j],pts[j])
+            if length(delta)<1e-9: continue
+            idx=min(range(len(base)),key=lambda i:length(minus(base[i],pts[j])))
+            distances=[0.]*len(base)
+            for k in range(idx-1,-1,-1): distances[k]=distances[k+1]+length(minus(base[k+1],base[k]))
+            for k in range(idx+1,len(base)): distances[k]=distances[k-1]+length(minus(base[k],base[k-1]))
+            for k,d in enumerate(distances):
+                if d<model.apex_taper_mm:
+                    # smooth peak at vertex, zero at taper boundary
+                    weight=1.-smooth(d/model.apex_taper_mm)
+                    target[k]=plus(target[k],scale(delta,weight))
+
     # Pin each original vertex, including both sides of a closed seam.
     vertex_indices=set()
     vertex_angles={}
@@ -206,12 +251,12 @@ def inverse(points,model,closed=False):
     holder=list(target)
     # Keep the best predicted fit, never blindly accept the final iteration.
     def fit(path):
-        predicted=forward(path,model)
+        predicted=forward(path,model,history_reference=history_reference)
         return sum(length(minus(p,t))**2 for p,t in zip(predicted,target))/len(target)
     best_holder=list(holder)
     best_error=fit(holder)
     for _ in range(model.iterations):
-        predicted=forward(holder,model)
+        predicted=forward(holder,model,history_reference=history_reference)
         corrections=[]
         for i,(p,t) in enumerate(zip(predicted,target)):
             if i==0: corrections.append((0.,0.)); continue

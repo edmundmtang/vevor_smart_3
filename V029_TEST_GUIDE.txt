@@ -1,0 +1,44 @@
+v0.29 — isolate history from holder apex movement; localized corner-exit trial
+
+Physical observations motivating this test:
+* Case 4: no horizontal endpoint gap, right stroke about 0.30 mm ABOVE left.
+* Case 6: 0.20 mm apex gets cuts to meet, but a small flap and ~0.5 mm
+  outgoing recovery remain. These are physical observations, not solved defects.
+
+This is a controlled experimental test, NOT a validated physical fix.
+All patterns are cases 4 and 6 only. Nominal geometry scale X=Y=1.0.
+The Y-history amplitude stays at -0.300 mm; blade model, inverse iteration,
+corner-apex magnitude 0.20 mm, machine calibration, and USB driver unchanged.
+
+A_v028_reference: v0.28-style apex target and holder-derived Y history.
+B_isolated_history: same apex target, but Y-history input is sampled from
+    intended geometry rather than the modified holder path.
+C_isolated_tapered: B plus smooth finite-support apex target deformation
+    over 0.50 mm on both sides of the corner; 0.20 mm peak at apex.
+
+IMPORTANT: The new taper changes the intended solver target locally, not
+just the holder. It may increase overlap or create a flap. Never assume
+simulated improvement implies real improvement.
+
+Start with B (A already tested in v0.28). If case 4 improves without case 6
+worsening, try C on a fresh sheet. If B makes case 4 worse, stop and report.
+
+Dry run from this folder:
+  py smart3_cut.py B_isolated_history/v029_grid_experimental.svg --dry-run
+  py smart3_cut.py C_isolated_tapered/v029_grid_experimental.svg --dry-run
+
+Live cut only after verifying machine origin, material, dry-run bounds and
+safe clearance. One 140 x 125 mm vinyl piece per trial, subject to actual
+bounds and origin. The SVG canvas is 124 x 111 mm.
+  py smart3_cut.py B_isolated_history/v029_grid_experimental.svg --cut --confirm-live-test I_ACCEPT_MOVEMENT
+  py smart3_cut.py C_isolated_tapered/v029_grid_experimental.svg --cut --confirm-live-test I_ACCEPT_MOVEMENT
+
+Record for EACH case and variant:
+  Case 4: signed vertical offset (right ABOVE left = positive), and
+          whether the horizontal ends touch or overlap.
+  Case 6: whether cuts meet at apex, whether flap remains, and outgoing
+          recovery length. Look for overshoot or corner collision.
+
+Experimental Y-history and apex options are OFF by default in the Model.
+These generated SVGs are already compensated; do NOT compensate them again
+or add blade-offset/loop-overlap in smart3_cut.py.
