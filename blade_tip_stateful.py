@@ -35,7 +35,10 @@ class Model:
     iterations: int=12
     vertex_weight: float=3.0
     corner_extra_mm: float=0.10
+    # Optional outward target excursion at true polygon vertices (default off).
+    corner_apex_mm: float=0.0
     # Optional bounded continuous Y-history correction; disabled by default.
+    # Negative magnitudes down to -0.40 are allowed ONLY for the v0.27 offline sweep.
     y_history_mm: float=0.0
     history_recovery_mm: float=1.39
     def __post_init__(self):
@@ -45,7 +48,7 @@ class Model:
                 .2<=self.x_rotation<=3 and .2<=self.y_rotation<=3 and
                 0<=self.min_approach_x_mm<=.4 and 0<=self.min_approach_y_mm<=.4 and
                 0<=self.conditioning_mm<=8 and .05<=self.step_mm<=.5 and
-                0<self.max_correction_mm<=1.5 and 0<=self.corner_extra_mm<=0.5 and 0<=self.y_history_mm<=.25 and .2<=self.history_recovery_mm<=5 and 1<=self.iterations<=25 and 1<=self.vertex_weight<=5):
+                0<self.max_correction_mm<=1.5 and 0<=self.corner_extra_mm<=0.5 and 0<=self.corner_apex_mm<=0.30 and -.40<=self.y_history_mm<=.25 and .2<=self.history_recovery_mm<=5 and 1<=self.iterations<=25 and 1<=self.vertex_weight<=5):
             raise ValueError('Model parameter outside experimental safety bounds')
 
 def sample(points,step):
@@ -111,13 +114,52 @@ def forward(holder, model):
         # than tangent noise. It holds on horizontal segments and is bounded.
         # Disabled by default because v0.23's full Y-history correction failed.
         if i and model.y_history_mm:
+            # Integrate the *signed physical Y travel*, not the noisy tangent
+            # direction. Hold the state when Y travel stops. Unlike a binary
+            # sign flip, this response is continuous across reversals.
             dy=h[1]-holder[i-1][1]
             if abs(dy)>1e-10:
-                alpha=min(1.,abs(dy)/model.history_recovery_mm)
-                y_state+=(math.copysign(1.,dy)-y_state)*alpha
-            tip=(tip[0],tip[1]+model.y_history_mm*y_state*abs(t[0]))
+                y_state=max(-1.,min(1.,y_state+dy/model.history_recovery_mm))
+            # Restrict the added lateral error to nearly horizontal motion.
+            # Smooth gating avoids abrupt transitions at curved/star vertices.
+            horizontal=smooth(max(0.,(abs(t[0])-.65)/.35))
+            tip=(tip[0],tip[1]+model.y_history_mm*y_state*horizontal)
         result.append(tip)
     return result
+
+def apex_targets(points, amount_mm, closed=False):
+    """Optional finite vertex extension along the exterior angle bisector.
+
+    Only genuine turns >=30 degrees are modified. A straight run, endpoints,
+    and an open path's initial/terminal position are unchanged. This changes
+    the inverse solver's target near a vertex, NOT the global scale.
+    """
+    pts=[tuple(map(float,p)) for p in points]
+    if not amount_mm: return pts
+    if len(pts)<3: return pts
+    if closed and length(minus(pts[0],pts[-1]))>1e-6:
+        raise ValueError('Closed apex target requires matching endpoints')
+    count=len(pts)-1 if closed else len(pts)
+    out=list(pts)
+    indices=range(count) if closed else range(1,count-1)
+    for j in indices:
+        prev=pts[(j-1)%count]
+        nxt=pts[(j+1)%count]
+        a=minus(pts[j],prev)
+        b=minus(nxt,pts[j])
+        if min(length(a),length(b))<1e-7: continue
+        incoming=unit(a); outgoing=unit(b)
+        angle=abs(math.atan2(cross(incoming,outgoing),
+                             incoming[0]*outgoing[0]+incoming[1]*outgoing[1]))
+        if angle<math.radians(30): continue
+        # Extension follows the vector from the interior of the V to its apex.
+        bisector=minus(incoming,outgoing)
+        if length(bisector)<1e-7: continue
+        # Avoid excessive excursions on tiny segments.
+        extent=min(amount_mm,0.15*length(a),0.15*length(b))
+        out[j]=plus(pts[j],scale(unit(bisector),extent))
+    if closed: out[-1]=out[0]
+    return out
 
 def inverse(points,model,closed=False):
     """Regularized inverse fit of a sampled holder path to the intended cut.
@@ -137,7 +179,8 @@ def inverse(points,model,closed=False):
         lead=minus(pts[0],scale(incoming,min(model.conditioning_mm,last_len)))
     else:
         lead=minus(pts[0],scale(unit(minus(pts[1],pts[0])),model.conditioning_mm))
-    target=sample([lead,*pts],model.step_mm)
+    fitted_pts=apex_targets(pts,model.corner_apex_mm,closed=closed)
+    target=sample([lead,*fitted_pts],model.step_mm)
     # Pin each original vertex, including both sides of a closed seam.
     vertex_indices=set()
     vertex_angles={}

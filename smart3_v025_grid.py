@@ -5,6 +5,7 @@ import argparse, math, xml.etree.ElementTree as ET
 from pathlib import Path
 from blade_tip_stateful import Model,inverse,forward,sample,length,minus
 from smart3_cut import parse_svg
+from geometry_scaling import scale_group
 NS='http://www.w3.org/2000/svg'
 
 def star(cx,cy,r=8.5,rotation=0):
@@ -47,7 +48,7 @@ def save(path,groups,w=124,h=111):
     ET.ElementTree(root).write(path,encoding='utf-8',xml_declaration=True)
 
 def main():
-    p=argparse.ArgumentParser(description='v0.24 offline 3x3 test grid')
+    p=argparse.ArgumentParser(description='v0.25 offline 3x3 test grid')
     p.add_argument('--output-dir',type=Path,default=Path('.'))
     p.add_argument('--recovery-mm',type=float,default=1.39)
     p.add_argument('--blade-offset-mm',type=float,default=.20)
@@ -61,18 +62,33 @@ def main():
     p.add_argument('--vertex-weight',type=float,default=3.0)
     p.add_argument('--corner-extra-mm',type=float,default=.10)
     p.add_argument('--y-history-mm',type=float,default=0.0,help='Experimental signed Y-memory amplitude; default 0')
+    p.add_argument('--geometry-scale-x',type=float,default=1.0,
+                   help='Scale intended X geometry around each cell center before compensation (default 1)')
+    p.add_argument('--geometry-scale-y',type=float,default=1.0,
+                   help='Scale intended Y geometry around each cell center before compensation (default 1)')
+    p.add_argument('--trial-square-dimension-factors',action='store_true',
+                   help='Use 16/15.65 X and 16/15.47 Y from one physical square; trial only')
     a=p.parse_args()
+    if a.trial_square_dimension_factors:
+        if a.geometry_scale_x != 1.0 or a.geometry_scale_y != 1.0:
+            p.error('Trial square factors cannot be combined with explicit geometry scales')
+        a.geometry_scale_x=16/15.65
+        a.geometry_scale_y=16/15.47
     model=Model(recovery_mm=a.recovery_mm,blade_offset_mm=a.blade_offset_mm,
                 x_rotation=a.x_rotation,y_rotation=a.y_rotation,
                 min_approach_x_mm=a.min_approach_x_mm,min_approach_y_mm=a.min_approach_y_mm,
                 conditioning_mm=a.conditioning_mm,max_correction_mm=a.max_correction_mm,
                 iterations=a.iterations,vertex_weight=a.vertex_weight,corner_extra_mm=a.corner_extra_mm,y_history_mm=a.y_history_mm)
     original=cases()
+    desired=[scale_group(group,a.geometry_scale_x,a.geometry_scale_y) for group in original]
+    print(f'Geometry scale X={a.geometry_scale_x:.6f}, Y={a.geometry_scale_y:.6f} (before blade compensation)')
+    print('Nominal square target: 16.00 x 16.00 mm; scaled target: '
+          f'{16*a.geometry_scale_x:.4f} x {16*a.geometry_scale_y:.4f} mm')
     print('Y-history correction:',a.y_history_mm,'mm (0 means disabled)')
-    experimental=[[inverse(path,model,closed=(math.dist(path[0],path[-1])<1e-7)) for path in group] for group in original]
+    experimental=[[inverse(path,model,closed=(math.dist(path[0],path[-1])<1e-7)) for path in group] for group in desired]
     a.output_dir.mkdir(parents=True,exist_ok=True)
-    files=[a.output_dir/'v024_grid_baseline.svg',a.output_dir/'v024_grid_experimental.svg']
-    for filename,groups in zip(files,(original,experimental)):
+    files=[a.output_dir/'v025_grid_baseline.svg',a.output_dir/'v025_grid_experimental.svg']
+    for filename,groups in zip(files,(desired,experimental)):
         save(filename,groups)
         parsed=parse_svg(filename)
         if len(parsed)!=13: raise ValueError(f'Expected 13 paths, got {len(parsed)}')

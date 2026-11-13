@@ -1,0 +1,44 @@
+V0.28: CORNER-APEX EXPERIMENT (OFFLINE ONLY)
+
+Physical evidence: v0.27 -0.300 mm Y-history gives visually aligned
+straight extensions in cases 4/6, but case 6 misses at the center due
+to rounding. No precise v0.27 B gap measurement has been reported.
+
+CHANGE: Optional --corner-apex-mm extends each true corner target along
+its exterior angle bisector BEFORE the existing inverse solver runs.
+It is zero by default; this is NOT a validated physical blade model.
+Extension is continuous with turn geometry, is limited to <=0.30 mm,
+never modifies open-path endpoints, and is also limited to 15% of each
+adjacent edge. The nominal geometry scale remains 1.0.
+
+ALL variants use -0.300 mm Y-history; no changes to machine calibration,
+rotation/recovery parameters, corner_extra_mm, or cutter sender.
+
+ A_reference_000/v028_grid_experimental.svg  0.00 mm apex (v0.27 B reference)
+ B_apex_010/v028_grid_experimental.svg      0.10 mm outward apex
+ C_apex_020/v028_grid_experimental.svg      0.20 mm outward apex
+
+Each test is four open paths (case 4 and case 6) in a 124 x 111 mm SVG.
+Each is intended for its own scrap sheet; do not cut at the same origin
+on the same vinyl. About 140 x 125 mm per test is a starting point,
+subject to checking real holder/HPGL bounds and cutter origin.
+
+From this folder, dry-run B first:
+ py smart3_cut.py B_apex_010/v028_grid_experimental.svg --dry-run
+Then only after verifying origin, vinyl/mat placement and travel bounds:
+ py smart3_cut.py B_apex_010/v028_grid_experimental.svg --cut --confirm-live-test I_ACCEPT_MOVEMENT
+
+If B still rounds and does not collide/overshoot, try C on fresh vinyl:
+ py smart3_cut.py C_apex_020/v028_grid_experimental.svg --dry-run
+ py smart3_cut.py C_apex_020/v028_grid_experimental.svg --cut --confirm-live-test I_ACCEPT_MOVEMENT
+
+Do not use --blade-offset-mm or --loop-overlap-mm on these already
+precompensated SVGs. Do not apply fit-to-page or geometry scaling.
+Measure case 4 straight alignment and case 6 center connection; inspect
+for hooks, flaps, crossings, and whether the corner now overshoots.
+Stop if a new flap/collision appears. Preserve the -0.300 mm reference.
+
+Rebuild:
+ py smart3_v028_grid.py --gap-only --y-history-mm=-0.300 --corner-apex-mm=0.10 --output-dir B_apex_010
+
+The model's simulated improvement is not proof of physical performance.

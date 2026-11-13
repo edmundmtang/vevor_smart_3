@@ -1,0 +1,36 @@
+V0.26: SIGNED APPROACH-HISTORY GAP PROBE (NOT A VALIDATED FIX)
+
+Purpose: distinguish whether a smooth approach-history Y correction can reduce
+~0.45 mm vertical gaps in the physical cuts in cases 4 and 6.
+
+Important: The physical sign of the residual has not been calibrated. Both
+polarities are experimental, and v0.23 previously worsened the gap. Do NOT
+assume either candidate is a fix. The algorithm still has unverified physics.
+
+The included negative_gap_only and positive_gap_only directories contain
+4-path patterns extracted from the same original cases 4 and 6. They are
+positioned in their original grid locations, so DO NOT cut both on the same
+material placement without moving to fresh material. Use the full-grid files
+only if necessary. Geometry scaling defaults to 1.0 and machine X/Y
+calibration remains untouched.
+
+Generate again:
+  py smart3_v026_grid.py --gap-only --y-history-mm=-0.225 --output-dir negative_gap_only
+  py smart3_v026_grid.py --gap-only --y-history-mm=0.225 --output-dir positive_gap_only
+
+Dry run each before live movement:
+  py smart3_cut.py negative_gap_only/v026_grid_experimental.svg --dry-run
+  py smart3_cut.py positive_gap_only/v026_grid_experimental.svg --dry-run
+
+Live cutting requires deliberate material/bounds checks and the original
+safety confirmation gate. Never cut both on top of each other.
+
+Measure the signed vertical gap for case 4 and case 6 for EACH polarity.
+Record which cut is above/below, not just absolute separation. If neither
+improves, revert to v0.24 and do not tune the amplitude upward.
+
+Model notes: y_state integrates signed Y travel with a finite bound and holds
+on horizontal segments. Smooth near-horizontal gating avoids applying the
+full bias on vertical and diagonal motion. The inverse solver remains the
+stable v0.24/v0.25 version. This is a controlled polarity experiment, not
+proof that the forward model matches the cutter.

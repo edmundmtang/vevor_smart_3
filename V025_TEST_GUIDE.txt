@@ -1,0 +1,36 @@
+v0.25 — PRE-COMPENSATION GEOMETRY SCALING (EXPERIMENTAL)
+
+Goals:
+  1. Preserve the stable v0.24 blade-tip inverse and loop behavior.
+  2. Allow optional independent X/Y dimensional adjustment of the INTENDED paths.
+  3. Scale each entire test cell about its own bounding-box center; preserve placement,
+     coincident vertices, and closed path endpoints.
+  4. Compensate blade-tip tracking AFTER geometry scaling, never scale compensated
+     holder motion or modify settings.txt machine calibration.
+
+No dimensional adjustment (recommended first):
+    py smart3_v025_grid.py
+
+Trial based on the one measured 16-mm square (X 15.65, Y 15.47):
+    py smart3_v025_grid.py --trial-square-dimension-factors
+
+Equivalent explicit controls:
+    py smart3_v025_grid.py --geometry-scale-x 1.0223642173 --geometry-scale-y 1.034259858
+
+NOTE: These are provisional proportional corrections from a single square. If the
+error is additive, they will not generalize to other dimensions. They are NOT
+new X/Y motor calibration values. Default factors remain 1.0.
+
+Before any live cut:
+    py smart3_cut.py v025_grid_experimental.svg --dry-run
+
+Only with material placement and bounds verified, on scrap:
+    py smart3_cut.py v025_grid_experimental.svg --cut --confirm-live-test I_ACCEPT_MOVEMENT
+
+Keep the main cutter's independent --blade-offset-mm and --loop-overlap-mm at 0.
+Do not feed the compensated SVG back through the grid generator. Each generator
+run overwrites its generated SVGs. The experimental inverse may move off-contour.
+
+Record: square X/Y sizes, closure quality, cases 4/6 gap, star/circle wobble.
+Scaling may alter closure and gap even though compensation is applied afterward;
+verify empirically. This release does NOT claim to fix the ~0.45 mm gap.

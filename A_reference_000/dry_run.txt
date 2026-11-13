@@ -1,0 +1,22 @@
+Closure diagnostics (all strategies currently prohibit off-contour lead-ins):
+  4 path(s): no-waste; original; disabled; blade: disabled
+SVG: /mnt/data/v028_work/A_reference_000/v028_grid_experimental.svg
+Settings file: /mnt/data/v028_work/settings.txt
+x_scale: 0.74906512
+y_scale: 3.59950979
+x_offset: 0.0
+y_offset: 0.0
+preserve_origin: true
+finish_mode: standard
+cut_force: 200
+cut_speed: 100
+mat_width_mm: 304.8
+mat_height_mm: 304.8
+Live USB cutting: SP1;FS200;VS100;
+Live USB ending: PU0,0;SP2;PU0,0;PG;
+Paths: 4; default strategy: no-waste; loop start: original; requested overlap: 0.0 mm; blade offset: 0.0 mm
+Physical SVG bounds (mm): X 10.993..104.191, Y 43.770..68.230
+Physical mat limits (mm): X 0..304.800, Y 0..304.800
+Corrected bounds (mm): X 8.235..78.046, Y 157.551..245.594
+HPGL written: /mnt/data/v028_work/A_reference_000/v028_grid_experimental.hpgl
+NO CUT SENT: offline HPGL generation only.

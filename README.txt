@@ -186,3 +186,42 @@ See V024_TEST_GUIDE.txt. The regression-inducing v0.23 Y-history amplitude
 is disabled by default. Optional --y-history-mm is experimental only.
 The inverse retains the best simulated fit across iterations.
 This is NOT physically validated and may cut outside the desired contour.
+
+
+v0.25 — geometry scale stage before blade-tip compensation
+---------------------------------------------------------
+Run `py smart3_v025_grid.py --trial-square-dimension-factors` to test optional
+X/Y geometry factors based on one measured 16 mm square (15.65 X, 15.47 Y).
+The generator scales each cell's intended paths about their shared center, then
+uses the unchanged v0.24 inverse model. Defaults are X=Y=1.0.
+`settings.txt` and the main cutter's machine calibration are unchanged.
+See V025_TEST_GUIDE.txt for dry-run, guarded cutting, and cautions.
+
+V0.26 GAP PROBE
+---------------
+See V026_TEST_GUIDE.txt. Default history correction remains zero. The signed
+approach-history term is experimental; compare +/- polarity on separate scrap.
+No dimensional correction is applied in the supplied test SVGs.
+
+V0.27 NEGATIVE Y-HISTORY MAGNITUDE SWEEP
+---------------------------------------
+See V027_TEST_GUIDE.txt. Physical v0.26 results favor negative polarity:
+-0.225 mm reduced case 4 gap to 0.20 mm and case 6 gap to 0.38 mm,
+versus approximately 0.45 mm in the v0.24 baseline. This is not yet a
+validated general-purpose blade compensation algorithm.
+
+v0.27 changes ONLY the permitted negative history-amplitude range (to
+-0.400 mm), and supplies three precomputed four-path SVGs at -0.225,
+-0.300, and -0.375 mm. The continuous state, angular gate, inverse solver,
+corner behavior, X/Y machine calibration, and geometry scale=1.0 remain
+unchanged. No extra compensation should be applied to the precomputed SVGs.
+The correction remains off by default. Stop testing if cuts collide or
+become distorted. These patterns have overlapping placement; use fresh vinyl.
+
+V0.28 CORNER-APEX TEST (EXPERIMENTAL)
+-----------------------------------
+See V028_TEST_GUIDE.txt. Added optional corner_apex_mm to the stateful
+inverse model (default 0). Outward vertex targets are capped at 0.30 mm
+and 15% of adjacent edge lengths. The v0.27 -0.300 mm Y-history setting
+is held fixed in three gap-only SVG variants. No general cutter-side
+blade-tip compensation or machine calibration changes are made.

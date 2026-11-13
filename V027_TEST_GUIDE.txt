@@ -1,0 +1,42 @@
+V0.27: NEGATIVE-POLARITY MAGNITUDE SWEEP (OFFLINE EXPERIMENT)
+
+Physical reference (reported by operator): v0.24 cases 4/6 ~0.45 mm;
+v0.26 negative -0.225: case 4 0.20 mm, case 6 0.38 mm;
+v0.26 positive +0.225: case 4 1.10 mm, case 6 0.99 mm.
+These are measured physical gaps, NOT simulation predictions.
+
+Only change from v0.26: permit negative history amplitudes down to -0.400 mm.
+The continuous Y-history model, directional gate, recovery, inverse solver,
+corner settings, and machine X/Y calibration are unchanged.
+Geometry scale X=Y=1.0. The optional correction remains disabled by default.
+
+PREGENERATED GAP-ONLY TESTS (case 4 and case 6, four paths each):
+  A_reference_minus_0225/v027_grid_experimental.svg
+  B_minus_0300/v027_grid_experimental.svg
+  C_minus_0375/v027_grid_experimental.svg
+
+Run B and C on FRESH vinyl in the SAME mat placement as A/v0.26.
+A is a reference: if you already trust the v0.26 negative cut, you may SKIP A.
+Each SVG has a 124 x 111 mm canvas; a roughly 140 x 125 mm vinyl piece
+per run provides modest material margin, subject to verified physical bounds.
+These patterns overlap if cut in the same origin on the same material.
+
+From the extracted package folder, dry-run BEFORE each live test:
+  py smart3_cut.py B_minus_0300/v027_grid_experimental.svg --dry-run
+  py smart3_cut.py C_minus_0375/v027_grid_experimental.svg --dry-run
+
+Only after verifying physical bounds, mat, blade start, and dry-run:
+  py smart3_cut.py B_minus_0300/v027_grid_experimental.svg --cut --confirm-live-test I_ACCEPT_MOVEMENT
+  py smart3_cut.py C_minus_0375/v027_grid_experimental.svg --cut --confirm-live-test I_ACCEPT_MOVEMENT
+
+For each test measure the Y gap in case 4 (straight horizontal sections)
+and case 6 (opposing vertex), record which approach is above, and report
+collisions, overshoot, corner rounding, or wobble. Stop the sweep if B
+collides or visibly distorts the cuts; do not automatically run C.
+
+Rebuild any candidate:
+  py smart3_v027_grid.py --gap-only --y-history-mm=-0.300 --output-dir B_minus_0300
+
+The SVG is already compensated: DO NOT apply additional blade-tip or blade-
+offset compensation when cutting it. This test does not validate arbitrary
+SVG behavior. Do not adjust machine X/Y calibration or use fit-to-page.
