@@ -177,3 +177,16 @@ model is still phenomenological and unvalidated. Off-contour cuts possible.
 
 Run baseline only if desired; do not use the cutter's separate --blade-offset-mm
 or --loop-overlap-mm on these generated compensated SVGs.
+
+
+v0.23 EXPERIMENTAL Y-HISTORY PREDICTOR
+-------------------------------------
+The active offline generator is smart3_v023_grid.py. It produces
+v023_grid_baseline.svg and v023_grid_experimental.svg. The original
+smart3_cut.py is unchanged; it does not yet compensate arbitrary SVGs itself.
+The blade_tip_stateful.py predictor now carries signed Y approach memory into
+horizontal travel and allows a persistent lateral displacement. The default
+trial Y displacement is 0.225 mm per side, inferred from case 4 under a
+symmetry assumption; X history compensation defaults to zero. Both are
+experimental, not physical calibration constants. Run the test guide and
+review the generated SVG and HPGL before any authorized live cut.

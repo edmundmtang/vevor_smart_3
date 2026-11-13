@@ -1,0 +1,21 @@
+v0.23 — Y-approach hysteresis hypothesis
+
+1. py smart3_v023_grid.py
+2. py smart3_cut.py v023_grid_experimental.svg --dry-run
+3. Check physical bounds, mat placement, and the generated HPGL before cutting.
+4. On scrap vinyl only: py smart3_cut.py v023_grid_experimental.svg --cut --confirm-live-test I_ACCEPT_MOVEMENT
+
+No baseline required. Force 200, speed 100; separate cutter blade offset and loop overlap both 0.
+
+Cases 1-2: square loop closure and flaps.
+Case 3: opposing turns — watch for collisions.
+Case 4: opposing horizontal lines — measure their steady-state lateral separation.
+Case 5: opposing Ls.
+Case 6: opposing 45-degree corners — measure minimum gap.
+Case 7: circle — compare diagonals y=x and y=-x (previously 17.63 and 17.11 mm).
+Cases 8-9: rotated stars.
+
+Model: retains signed Y approach history during horizontal travel; assumes 0.225 mm
+residual per side as a trial value derived from the observed 0.45 mm case-4 gap.
+This is not a verified physical calibration. Experimental holder paths may cut
+outside intended contour. Do not use for production cuts.

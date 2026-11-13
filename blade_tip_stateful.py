@@ -34,7 +34,9 @@ class Model:
     max_correction_mm: float=0.65
     iterations: int=12
     vertex_weight: float=3.0
-    corner_extra_mm: float=0.25
+    corner_extra_mm: float=0.10
+    y_history_gain: float=1.0
+    x_history_gain: float=0.0
     def __post_init__(self):
         for v in vars(self).values():
             if not math.isfinite(v): raise ValueError('Nonfinite model parameter')
@@ -42,7 +44,7 @@ class Model:
                 .2<=self.x_rotation<=3 and .2<=self.y_rotation<=3 and
                 0<=self.min_approach_x_mm<=.4 and 0<=self.min_approach_y_mm<=.4 and
                 0<=self.conditioning_mm<=8 and .05<=self.step_mm<=.5 and
-                0<self.max_correction_mm<=1.5 and 0<=self.corner_extra_mm<=0.5 and 1<=self.iterations<=25 and 1<=self.vertex_weight<=5):
+                0<self.max_correction_mm<=1.5 and 0<=self.corner_extra_mm<=0.5 and 0<=self.y_history_gain<=3 and 0<=self.x_history_gain<=3 and 1<=self.iterations<=25 and 1<=self.vertex_weight<=5):
             raise ValueError('Model parameter outside experimental safety bounds')
 
 def sample(points,step):
@@ -70,28 +72,36 @@ def _direction_at(points, i, window_mm=0.45):
     return unit(d)
 
 def forward(holder, model):
-    """Stateful phenomenological predictor, with finite turn response and held bias.
+    """Predict tip from holder using rotation plus persistent approach memory.
 
-    Uses an angular interpolation (safe for reversals) and a spatially averaged
-    holder tangent. This is a predictive hypothesis, not a measured blade model.
+    The Y memory is the signed direction of the last substantial Y travel. It
+    persists on horizontal runs, instead of decaying to zero with travel length.
+    The perpendicular residual is applied only when moving near-horizontal:
+    this is an explicit empirical hypothesis, not a machine calibration.
     """
     if len(holder)<2: raise ValueError('Need two holder positions')
     directions=[_direction_at(holder,i) for i in range(len(holder))]
-    orientation=directions[0]; previous=directions[0]; side=0.
-    from_angle=math.atan2(orientation[1],orientation[0]); to_angle=from_angle
+    orientation=directions[0]
+    previous=directions[0]
+    from_angle=math.atan2(orientation[1],orientation[0])
+    to_angle=from_angle
     elapsed=model.recovery_mm
+    # Conditioned initial approach: incoming Y sign is known from lead segment.
+    y_memory=0.0
+    x_memory=0.0
     result=[]
     for i,h in enumerate(holder):
         t=directions[i]
+        ds=0.0
         if i:
             ds=length(minus(h,holder[i-1]))
             angle=math.atan2(t[1],t[0])
             prev_angle=math.atan2(previous[1],previous[0])
             change=math.atan2(math.sin(angle-prev_angle),math.cos(angle-prev_angle))
             if abs(change)>0.035 and elapsed>=model.recovery_mm:
-                from_angle=math.atan2(orientation[1],orientation[0]); to_angle=angle
+                from_angle=math.atan2(orientation[1],orientation[0])
+                to_angle=angle
                 elapsed=0.
-                side=1. if change>0 else -1.
             elif elapsed<model.recovery_mm:
                 to_angle=angle
             elapsed=min(model.recovery_mm,elapsed+ds)
@@ -101,8 +111,22 @@ def forward(holder, model):
             theta=from_angle+w*difference
             orientation=(math.cos(theta),math.sin(theta))
             previous=t
-        bias=side*(model.min_approach_x_mm*abs(t[0])+model.min_approach_y_mm*abs(t[1]))
-        result.append(plus(minus(h,scale(orientation,model.blade_offset_mm)),scale(normal(t),bias)))
+        # A meaningful Y excursion sets the signed approach memory. The memory
+        # is retained on horizontal travel (no artificial asymptotic decay).
+        # Blend only during active axis movement; avoid responding to tiny
+        # numerical deviations introduced by the inverse solver.
+        if abs(t[1])>.25:
+            y_memory=mix((y_memory,0.),(math.copysign(1.,t[1]),0.),min(1.,abs(t[1])*ds/max(.1,model.recovery_mm)))[0]
+        if abs(t[0])>.25:
+            x_memory=mix((x_memory,0.),(math.copysign(1.,t[0]),0.),min(1.,abs(t[0])*ds/max(.1,model.recovery_mm)))[0]
+        # Signed Y residual on X motion, and X residual on Y motion.
+        # Directional weights vanish on the other axis. Both are tunable.
+        residual=(model.min_approach_y_mm*model.y_history_gain*y_memory*abs(t[0]),
+                  model.min_approach_x_mm*model.x_history_gain*x_memory*abs(t[1]))
+        # residual tuple above denotes (Y displacement, X displacement)
+        tip=minus(h,scale(orientation,model.blade_offset_mm))
+        tip=(tip[0]+residual[1],tip[1]+residual[0])
+        result.append(tip)
     return result
 
 def inverse(points,model,closed=False):
