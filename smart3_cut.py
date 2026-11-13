@@ -347,6 +347,10 @@ def main():
                         help='Total symmetric overlap centered on nominal seam, half before and half after, following corners (mm); default disabled')
     parser.add_argument('--blade-offset-mm', type=float, default=0.0,
                         help='EXPERIMENTAL: drag-knife holder path offset in mm (0..2); 0 disables')
+    parser.add_argument('--blade-tip-compensation', action='store_true',
+                        help='EXPERIMENTAL v0.30 single-model inverse; OFF by default; do not use on precompensated SVGs')
+    parser.add_argument('--tip-history-mm', type=float, default=-0.300,
+                        help='Experimental signed Y-history for v0.30 (-0.40..0.25 mm)')
     parser.add_argument('--blade-arc-step-deg', type=float, default=10.0,
                         help='Max angular step for holder pivot arcs (1..45 degrees)')
     parser.add_argument('--lead-in-mm', type=float, default=0.0,
@@ -385,6 +389,10 @@ def main():
             raise ValueError('--loop-turn-tolerance must be in [0, 90) degrees')
         if not math.isfinite(args.loop_overlap_mm) or args.loop_overlap_mm < 0 or args.loop_overlap_mm > 5:
             raise ValueError('--loop-overlap-mm must be finite and between 0 and 5 mm')
+        if args.blade_tip_compensation and (args.blade_offset_mm != 0 or args.loop_overlap_mm != 0):
+            raise ValueError('Stateful tip compensation cannot be combined with legacy blade offset or loop overlap; NO DATA SENT')
+        if args.blade_tip_compensation and (not math.isfinite(args.tip_history_mm) or not (-.40 <= args.tip_history_mm <= .25)):
+            raise ValueError('Invalid --tip-history-mm; NO DATA SENT')
         if args.lead_in_mm != 0:
             raise ValueError('Off-contour lead-ins are not implemented. --lead-in-mm must be 0; NO DATA SENT.')
         modes = {}
@@ -406,7 +414,13 @@ def main():
             new, seam_info = relocate(outline, args.loop_start, args.min_loop_straight,
                                       args.loop_turn_tolerance)
             new, overlap_info = add_same_path_overlap(new, args.loop_overlap_mm)
-            new, blade_info = compensate(new, args.blade_offset_mm, args.blade_arc_step_deg)
+            if args.blade_tip_compensation:
+                from blade_tip_clean import CleanConfig, compensate as compensate_tip
+                new=compensate_tip(new, CleanConfig(lateral_history_mm=args.tip_history_mm),
+                                   closed=(len(new)>2 and math.dist(new[0],new[-1])<1e-6))
+                blade_info='v0.30 single-model stateful inverse (experimental)'
+            else:
+                new, blade_info = compensate(new, args.blade_offset_mm, args.blade_arc_step_deg)
             processed.append(new)
             key = (mode, seam_info, overlap_info, blade_info)
             counts[key] = counts.get(key, 0) + 1
@@ -414,6 +428,9 @@ def main():
         print('Closure diagnostics (all strategies currently prohibit off-contour lead-ins):')
         for (mode, seam_info, overlap_info, blade_info), count in sorted(counts.items()):
             print(f'  {count} path(s): {mode}; {seam_info}; {overlap_info}; blade: {blade_info}')
+        if args.blade_tip_compensation:
+            print('WARNING: stateful inverse is NOT physically validated; input MUST be original, uncompensated SVG geometry.')
+            print('No apex target deformation, extra turn bias, or separate outgoing correction is active.')
         if args.blade_offset_mm > 0:
             print('WARNING: EXPERIMENTAL blade-offset holder compensation; pivot arcs leave the nominal contour. Not strict no-waste; inspect HPGL before live cutting.')
         physical_bounds = get_physical_bounds(outlines)
