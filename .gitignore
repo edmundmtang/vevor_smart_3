@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+# Dry-run output and local scratch data
+calibration/comparisons/**/v030_dry_run.hpgl
+calibration/comparisons/**/v030_from_cutter.hpgl

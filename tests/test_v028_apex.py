@@ -1,6 +1,6 @@
 import unittest, math
 from blade_tip_stateful import Model,apex_targets,inverse,length,minus
-from smart3_v028_grid import cases
+from calibration.legacy_generators.smart3_v028_grid import cases
 class ApexTests(unittest.TestCase):
     def test_default_off(self):
         self.assertEqual(Model().corner_apex_mm,0)

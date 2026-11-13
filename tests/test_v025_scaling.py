@@ -1,6 +1,6 @@
 import math, unittest
 from geometry_scaling import scale_group
-from smart3_v025_grid import cases
+from calibration.legacy_generators.smart3_v025_grid import cases
 from blade_tip_stateful import Model, inverse
 
 class GeometryScaleTests(unittest.TestCase):

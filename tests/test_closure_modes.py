@@ -8,7 +8,7 @@ from pathlib import Path
 from loop_closure import relocate, add_same_path_overlap
 from smart3_cut import make_hpgl
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 SQUARE = [(10,10),(20,10),(20,20),(10,20),(10,10)]
 
 class ClosureModeTests(unittest.TestCase):
@@ -38,7 +38,7 @@ class ClosureModeTests(unittest.TestCase):
         out,info=relocate(pts,'auto-straight',0.5,5)
         self.assertEqual(out,pts)
     def test_live_guard_rejects_lead_in(self):
-        cmd=[sys.executable,str(ROOT/'smart3_cut.py'),str(ROOT/'calibration_loops.svg'),'--dry-run','--lead-in-mm','0.5']
+        cmd=[sys.executable,str(ROOT/'smart3_cut.py'),str(ROOT/'calibration/legacy_patterns/calibration_loops.svg'),'--dry-run','--lead-in-mm','0.5']
         result=subprocess.run(cmd,capture_output=True,text=True,cwd=ROOT)
         self.assertNotEqual(result.returncode,0)
         self.assertIn('not implemented',result.stderr)
@@ -46,7 +46,7 @@ class ClosureModeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             f=Path(d)/'modes.json'
             f.write_text(json.dumps({'999':'keep-inside'}))
-            cmd=[sys.executable,str(ROOT/'smart3_cut.py'),str(ROOT/'calibration_loops.svg'),'--dry-run','--contour-modes',str(f)]
+            cmd=[sys.executable,str(ROOT/'smart3_cut.py'),str(ROOT/'calibration/legacy_patterns/calibration_loops.svg'),'--dry-run','--contour-modes',str(f)]
             result=subprocess.run(cmd,capture_output=True,text=True,cwd=ROOT)
             self.assertNotEqual(result.returncode,0)
             self.assertIn('Invalid contour index',result.stderr)

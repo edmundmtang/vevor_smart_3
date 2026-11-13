@@ -1,13 +1,13 @@
 """Generate compact uncompensated and v0.30 compensated cases 4 and 6."""
 import argparse, math
 from pathlib import Path
-from smart3_v029_grid import cases, save
+from calibration.legacy_generators.smart3_v029_grid import cases, save
 from blade_tip_clean import CleanConfig, compensate, component_audit
 from smart3_cut import parse_svg
 
 def main():
     ap=argparse.ArgumentParser()
-    ap.add_argument('--output-dir',type=Path,default=Path('v030_comparison'))
+    ap.add_argument('--output-dir',type=Path,default=Path('calibration/comparisons/v030_comparison'))
     ap.add_argument('--tip-history-mm',type=float,default=-.300)
     args=ap.parse_args()
     groups=[cases()[3],cases()[5]]

@@ -1,6 +1,6 @@
 import unittest
 from blade_tip_stateful import Model, forward, inverse, length, minus
-from smart3_v029_grid import cases
+from calibration.legacy_generators.smart3_v029_grid import cases
 
 class V029Tests(unittest.TestCase):
     def test_history_reference_changes_only_history_term(self):

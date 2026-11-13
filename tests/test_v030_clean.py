@@ -1,7 +1,7 @@
 import unittest, math, subprocess, sys, tempfile
 from pathlib import Path
 from blade_tip_clean import CleanConfig, component_audit, compensate
-from smart3_v029_grid import cases
+from calibration.legacy_generators.smart3_v029_grid import cases
 
 class CleanModelTests(unittest.TestCase):
     def test_no_competing_terms(self):

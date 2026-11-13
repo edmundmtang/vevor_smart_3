@@ -1,6 +1,6 @@
 import math, unittest
 from blade_tip_stateful import Model, forward, inverse
-from smart3_v025_grid import cases
+from calibration.legacy_generators.smart3_v025_grid import cases
 class StatefulV022Tests(unittest.TestCase):
  def test_nine_cells(self):
   self.assertEqual(len(cases()),9)

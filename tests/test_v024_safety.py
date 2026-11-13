@@ -1,6 +1,6 @@
 import unittest, math
 from blade_tip_stateful import Model,forward,inverse
-from smart3_v025_grid import cases
+from calibration.legacy_generators.smart3_v025_grid import cases
 class SafetyTests(unittest.TestCase):
  def test_history_off_by_default(self):
   self.assertEqual(Model().y_history_mm,0.)
