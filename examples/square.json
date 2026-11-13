@@ -1,0 +1,40 @@
+{
+  "version": "1.0.0",
+  "status": "physically_tested_configuration_not_universally_validated",
+  "source": "D:\\3D\\Smart 3 Scripts\\examples\\square.svg",
+  "source_sha256": "67f53bb74fa060da7fc0bcc45b7c40c3ae3d02f15e90eb6aabe8edb1f56f3be5",
+  "hpgl_sha256": "fb4b3e2893f70796af01737eadf96fa5e4e9f8b68c0b05b43faa3653fabd4761",
+  "settings": {
+    "x_scale": 0.74906512,
+    "y_scale": 3.59950979,
+    "x_offset": 0.0,
+    "y_offset": 0.0,
+    "preserve_origin": true,
+    "finish_mode": "standard",
+    "cut_force": 200,
+    "cut_speed": 100,
+    "mat_width_mm": 304.8,
+    "mat_height_mm": 304.8
+  },
+  "baseline": "v0.30 stateful inverse",
+  "corner": {
+    "overshoot_mm": 0.2,
+    "approach_mm": 0.5,
+    "recovery_mm": 1.5,
+    "easing": "quintic"
+  },
+  "contours": 1,
+  "holder_bounds_mm": [
+    5.673976931028272,
+    5.59950966902262,
+    22.32624857973876,
+    22.561831584869154
+  ],
+  "command_bounds_mm": [
+    4.250178210717924,
+    20.15548987284658,
+    16.723814071531844,
+    81.21153367006774
+  ],
+  "note": "Original SVG input only. Do not double compensate generated holder paths."
+}

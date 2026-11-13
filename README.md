@@ -1,46 +1,59 @@
-# Smart 3 — v0.32 experimental corner sweep
+# Smart3 v1.0.0 — VEVOR Smart 3 vinyl cutter
 
-This is a self-contained experiment. **No `v030_baseline` or `smart3_v031_corner_sweep` directories are needed.**
+This is the **v1.0.0 release**, with the best physically tested settings found for this cutter. It preserves the machine-specific calibration and the v0.30 stateful inverse with signed Y-history, and fixes the experimentally preferred v0.32 corner modifier at **0.20 mm overshoot / 0.50 mm approach / 1.50 mm recovery / quintic easing**.
 
-- `sweep.py` — build, validate, and guarded live-send entry point
-- `corner_transition_v032.py` — experimental local overshoot/recovery modifier
-- `corner_sweep_target.svg` — intended blade-tip geometry, NOT a holder-path cutting file
-- `engine/` — unchanged v0.30 cutter engine, calibration, documentation and regression tests
-- `archive/` — prior v0.31 scripts for reference only; not used by `sweep.py`
-- `tests/` — new integration and safety tests
-- `corner_sweep_v032_EXPERIMENTAL.hpgl` and `.json` — generated, validated pair
-
-## Windows PowerShell
-
-Extract the `smart3` directory to `D:\3D\Smart3\smart3` (or another directory).
+## Install
 
 ```powershell
-cd D:\3D\Smart3\smart3
-python .\sweep.py build
-python .\sweep.py check
-cd .\engine
-python -m unittest discover -s .\tests -q
-cd ..
-python -m unittest discover -s .\tests -q
+python -m pip install -r .\requirements.txt
 ```
 
-Only after inspecting the output and preparing the cutter, for an attended **experimental** cut:
+Install dependencies from `requirements.txt`. The Blender mesh exporter emits polylines/polygons and has been tested with the Smart3 parser. Other SVG path types remain subject to parser limitations.
+
+## Commands (Windows PowerShell)
 
 ```powershell
-python .\sweep.py cut --confirm-live-test I_ACCEPT_MOVEMENT
+python .\smart3.py build .\examples\square.svg
+python .\smart3.py preview .\examples\square.svg
+python .\smart3.py check .\examples\square.svg
+python .\smart3.py cut .\examples\square.svg --confirm-live-test I_ACCEPT_MOVEMENT
 ```
 
-The cutter is not connected or tested by this package's author. `cut` performs a deterministic fresh rebuild and refuses altered HPGL, report, calibration, or settings. It reuses the unchanged v0.30 Windows USBPRINT sender (one write, no retry or execution acknowledgment). **Never feed the generated HPGL back through SVG compensation.**
-
-The 3x3 grid contains 16 mm squares, two separate angle-approach cuts, and those angles rotated 45 degrees. Column A is unmodified v0.30, B adds 0.10 mm, C adds 0.20 mm. Recovery is 1.5 mm with a 0.5 mm approach and quintic easing. To change the sweep:
+`build` creates `square.hpgl` and `square.json` without machine movement. `preview` creates `square_holder_preview.svg`: **blue is commanded holder geometry**, gray dashed is original target geometry. Preview SVG is NOT an input to cut. `check` recomputes the job and compares HPGL, source hash, calibration, and report. `cut` only transmits a previously verified build. `run` builds, verifies and transmits in one command with the same explicit confirmation:
 
 ```powershell
-python .\sweep.py build --overshoot 0 0.05 0.10 --approach-mm 0.5 --recovery-mm 1.5 --easing quintic
-python .\sweep.py check
+python .\smart3.py run .\examples\square.svg --confirm-live-test I_ACCEPT_MOVEMENT
 ```
 
-Prepare at least 110 x 100 mm of usable vinyl cutting area, **plus additional feed/roller gripping margin required by the machine**. Verify cutter origin and travel independently. Stay at the cutter with emergency stop available.
+**Before any live cut:** verify cutter origin, actual usable material area, pinch-roller grip, and stop access. No USB write proves machine execution. Failed or partial writes must not be automatically retried. Never submit an already compensated holder SVG as the source.
 
-## Engineering caveat
+## SVG limitations
 
-This is **not** a physically validated full geometric corner planner. The v0.32 module applies a bounded, localized, eased incoming-tangent displacement to the v0.30 inverse holder path. It does not explicitly insert a straight overshoot segment or enforce a tangent-continuous return, and the predictor diagnostics are hypothetical. The live path is enabled to allow a cautious physical **experiment**, not to certify that it improves apex reach or flap formation. The existing signed -0.300 mm Y-history and 1.39 mm recovery are unchanged.
+The inherited parser supports a constrained set of untransformed SVG primitives and path commands. It rejects unsupported elements and transforms. Flatten transforms in your SVG editor and export a simple SVG with physical mm dimensions. Inspect the preview before cutting unfamiliar files.
+
+## Grid tool
+
+```powershell
+python .\tools\grid_array.py .\examples\square.svg .\examples\grid.svg --rows 3 --cols 3 --gap-mm 5 --margin-mm 5
+python .\smart3.py build .\examples\grid.svg
+```
+
+## Tests
+
+```powershell
+python .\run_tests.py
+```
+
+## Release validation and known limitations
+
+The Windows installation passed 66 regression tests (1 skipped). A Blender-exported eight-contour 2×4 grid with 5 mm margin passed build, preview, and check, and the user reported a successful physical cut with clean, closed loops. See `docs/RELEASE_NOTES_v1.0.0.md`.
+
+- Corner gaps and pre-turn flaps remain possible. This configuration is the best observed among the user's physical tests, not a guarantee of geometric accuracy.
+- Calibration and feed/origin behavior are specific to the tested cutter.
+- Blender exporter is included at `tools/blender_export.py` (see `docs/BLENDER_EXPORT.md`); a real Blender-to-grid-to-cutter test was completed.
+- Small rounded tines around 1 mm wide may cut too pointed. Cause is not isolated; see release notes. This is deferred, not resolved.
+- The original `engine/` directory contains historical experiments for traceability; production entry point is `smart3.py`.
+
+## Blender mesh exporter
+
+Open `tools/blender_export.py` inside Blender and follow `docs/BLENDER_EXPORT.md`. It exports world-XY mesh edges into millimetre SVG without modifying the source mesh.

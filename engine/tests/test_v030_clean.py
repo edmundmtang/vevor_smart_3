@@ -23,7 +23,7 @@ class CleanModelTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             src=Path(tmp)/'test.svg'
             src.write_text('<svg xmlns="http://www.w3.org/2000/svg" width="20mm" height="20mm" viewBox="0 0 20 20"><polyline points="3,3 17,3 17,17"/></svg>')
-            result=subprocess.run([sys.executable,'smart3_cut.py',str(src),'--blade-tip-compensation','--blade-offset-mm','.2','--dry-run'],capture_output=True,text=True)
+            result=subprocess.run([sys.executable,str(Path(__file__).resolve().parents[1]/'smart3_cut.py'),str(src),'--blade-tip-compensation','--blade-offset-mm','.2','--dry-run'],capture_output=True,text=True)
             self.assertNotEqual(result.returncode,0)
             self.assertIn('cannot be combined',result.stderr)
             self.assertFalse(src.with_suffix('.hpgl').exists())
