@@ -1,52 +1,46 @@
-# VEVOR Smart 3 — direct USB SVG cutter
+# Smart 3 — v0.32 experimental corner sweep
 
-**Project state:** v0.30 experimental blade-tip compensation; physical cuts have **not** established a production-ready drag-knife model. This repository is a working research prototype, not a validated general-purpose cutter driver.
+This is a self-contained experiment. **No `v030_baseline` or `smart3_v031_corner_sweep` directories are needed.**
 
-## First five minutes
+- `sweep.py` — build, validate, and guarded live-send entry point
+- `corner_transition_v032.py` — experimental local overshoot/recovery modifier
+- `corner_sweep_target.svg` — intended blade-tip geometry, NOT a holder-path cutting file
+- `engine/` — unchanged v0.30 cutter engine, calibration, documentation and regression tests
+- `archive/` — prior v0.31 scripts for reference only; not used by `sweep.py`
+- `tests/` — new integration and safety tests
+- `corner_sweep_v032_EXPERIMENTAL.hpgl` and `.json` — generated, validated pair
 
-1. Read [docs/HANDOFF.md](docs/HANDOFF.md) for the current physical observations and next experiment.
-2. Read [docs/SAFETY_AND_OPERATION.md](docs/SAFETY_AND_OPERATION.md) before connecting the machine.
-3. Run `py -m unittest discover -s tests -v` from the repository root.
-4. Generate the compact calibration sample with `py smart3_v030_grid.py`.
-5. Dry-run the original geometry using `py smart3_cut.py calibration/comparisons/v030_comparison/v030_original.svg --blade-tip-compensation --tip-history-mm -0.300 --dry-run --output calibration/comparisons/v030_comparison/v030_dry_run.hpgl`.
+## Windows PowerShell
 
-**Do not cut without verifying the physical origin, material, HPGL and movement bounds.** `--cut --confirm-live-test I_ACCEPT_MOVEMENT` sends live motion commands. A successful USB write does not prove that the cutter executed the entire job.
+Extract the `smart3` directory to `D:\3D\Smart3\smart3` (or another directory).
 
-## Layout
-
-```text
-smart3_cut.py             Main SVG → HPGL converter and guarded USB sender
-smart3_usb_probe.py       Windows USBPRINT probe (diagnostic)
-smart3_v030_grid.py       Current compact two-case comparison generator
-blade_tip_clean.py        v0.30 model configuration and inverse interface
-blade_tip_stateful.py     Experimental forward model and inverse solver
-blade_offset.py           Legacy compensation implementation
-loop_closure.py           Legacy seam/overlap implementation
-geometry_scaling.py       Historical scaling utility (not enabled in v0.30)
-settings.txt              Local calibration, cut and mat settings
-README.md                 This entry point
-docs/                     Architecture, operation, physical evidence, handoff
-calibration/comparisons/  Generated and historical physical-test variants
-calibration/legacy_generators/  Older experimental grid generators
-calibration/legacy_patterns/    Historical SVG/HPGL files
-calibration/historical_guides/  Prior test instructions (not current workflow)
-tests/                    Offline automated tests
+```powershell
+cd D:\3D\Smart3\smart3
+python .\sweep.py build
+python .\sweep.py check
+cd .\engine
+python -m unittest discover -s .\tests -q
+cd ..
+python -m unittest discover -s .\tests -q
 ```
 
-The older `README.txt` is preserved under `docs/archive/README_v015.txt`. The earlier v0.30 release notes are at `docs/archive/V030_README.md`. They describe historical layouts and should not override the commands in this README.
+Only after inspecting the output and preparing the cutter, for an attended **experimental** cut:
 
-## Current compensation rules
+```powershell
+python .\sweep.py cut --confirm-live-test I_ACCEPT_MOVEMENT
+```
 
-The default cutter does **not** enable stateful blade compensation. Use `--blade-tip-compensation` only with **original uncompensated SVG geometry**. Never pass a precompensated holder-path SVG with this flag. Nonzero `--blade-offset-mm` and `--loop-overlap-mm` cannot be combined with the stateful mode. No geometry scaling is enabled in the current comparison.
+The cutter is not connected or tested by this package's author. `cut` performs a deterministic fresh rebuild and refuses altered HPGL, report, calibration, or settings. It reuses the unchanged v0.30 Windows USBPRINT sender (one write, no retry or execution acknowledgment). **Never feed the generated HPGL back through SVG compensation.**
 
-## Documentation map
+The 3x3 grid contains 16 mm squares, two separate angle-approach cuts, and those angles rotated 45 degrees. Column A is unmodified v0.30, B adds 0.10 mm, C adds 0.20 mm. Recovery is 1.5 mm with a 0.5 mm approach and quintic easing. To change the sweep:
 
-- [docs/HANDOFF.md](docs/HANDOFF.md): status, measurements, unresolved problems, next steps
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): pipeline, model limitations and no-double-compensation rules
-- [docs/SAFETY_AND_OPERATION.md](docs/SAFETY_AND_OPERATION.md): dry-run and live-cut procedure
-- [docs/TESTING.md](docs/TESTING.md): offline tests and controlled physical tests
-- [docs/EXPERIMENT_HISTORY.md](docs/EXPERIMENT_HISTORY.md): historical versions and evidence
+```powershell
+python .\sweep.py build --overshoot 0 0.05 0.10 --approach-mm 0.5 --recovery-mm 1.5 --easing quintic
+python .\sweep.py check
+```
 
-## Requirements
+Prepare at least 110 x 100 mm of usable vinyl cutting area, **plus additional feed/roller gripping margin required by the machine**. Verify cutter origin and travel independently. Stay at the cutter with emergency stop available.
 
-Python 3 on Windows for USB transmission; offline generation/tests may work on other platforms. SVG `path` elements require the optional `svgpathtools` dependency; simple supported SVG primitives do not. The USB interface is Windows USBPRINT, not a standard serial port.
+## Engineering caveat
+
+This is **not** a physically validated full geometric corner planner. The v0.32 module applies a bounded, localized, eased incoming-tangent displacement to the v0.30 inverse holder path. It does not explicitly insert a straight overshoot segment or enforce a tangent-continuous return, and the predictor diagnostics are hypothetical. The live path is enabled to allow a cautious physical **experiment**, not to certify that it improves apex reach or flap formation. The existing signed -0.300 mm Y-history and 1.39 mm recovery are unchanged.
