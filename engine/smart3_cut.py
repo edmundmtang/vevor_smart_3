@@ -20,6 +20,12 @@ CUT_KEYS = ('cut_force', 'cut_speed')
 MAT_KEYS = ('mat_width_mm', 'mat_height_mm')
 DEFAULT_MAT = {'mat_width_mm': 304.8, 'mat_height_mm': 304.8}
 DEFAULT_CUT = {'cut_force': 200, 'cut_speed': 100}
+CUT_LIMITS = {'cut_force': 400, 'cut_speed': 300}
+
+def validate_cut_setting(key, value):
+    if type(value) is not int or not 1 <= value <= CUT_LIMITS[key]:
+        raise ValueError(f'{key} must be an integer between 1 and {CUT_LIMITS[key]} (software limit)')
+    return value
 ALL_KEYS = KEYS + BOOLEAN_KEYS + CHOICE_KEYS + CUT_KEYS + MAT_KEYS
 UNITS_PER_MM = 40.0  # observed in ExactCut square capture; not yet validated for custom sending
 NUMBER = r'[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?'
@@ -44,8 +50,10 @@ def load_settings(path=SETTINGS_PATH):
                 parsed = int(value)
             except ValueError as exc:
                 raise ValueError(f'{path}:{line_number}: {key} must be an integer') from exc
-            if not 1 <= parsed <= 300:
-                raise ValueError(f'{path}:{line_number}: {key} must be between 1 and 300 (conservative software limit)')
+            try:
+                validate_cut_setting(key, parsed)
+            except ValueError as exc:
+                raise ValueError(f'{path}:{line_number}: {exc}') from exc
             values[key] = parsed
         elif key in CHOICE_KEYS:
             if value.lower() not in ('standard', 'minimal'):
@@ -328,7 +336,7 @@ def main():
                             help='Physical mat dimension in mm (default 304.8)')
     for key in CUT_KEYS:
         parser.add_argument('--'+key.replace('_','-'), type=int, default=None,
-                            help='Override settings.txt for this job (1..300; device units not verified)')
+                            help='Override settings.txt for this job (force 1..400; speed 1..300; device units not verified)')
     parser.add_argument('--force', dest='cut_force', type=int, default=argparse.SUPPRESS,
                         help='Alias for --cut-force')
     parser.add_argument('--speed', dest='cut_speed', type=int, default=argparse.SUPPRESS,

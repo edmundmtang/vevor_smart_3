@@ -8,7 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / 'engine'))
-from smart3_cut import parse_svg, load_settings, make_hpgl, check_mat_limits, get_physical_bounds
+from smart3_cut import parse_svg, load_settings, make_hpgl, check_mat_limits, get_physical_bounds, validate_cut_setting
 from blade_tip_clean import CleanConfig, compensate
 from loop_closure import relocate, add_same_path_overlap
 from corner_transition import Transition, transition_holder
@@ -20,7 +20,7 @@ DEFAULT_TRANSITION = Transition(overshoot_mm=.20, approach_mm=.50, recovery_mm=1
 def digest(data):
     return hashlib.sha256(data).hexdigest()
 
-def build(svg):
+def build(svg, cut_force=None, cut_speed=None):
     svg = Path(svg).resolve()
     if not svg.is_file() or svg.suffix.lower() != '.svg':
         raise ValueError('Expected an existing original SVG input file')
@@ -29,10 +29,13 @@ def build(svg):
     if not targets:
         raise ValueError('SVG has no cuttable contours')
     settings = load_settings(ROOT / 'engine' / 'settings.txt')
+    for key, value in (('cut_force', cut_force), ('cut_speed', cut_speed)):
+        if value is not None:
+            settings[key] = validate_cut_setting(key, value)
     paths = []
     for original in targets:
         target, _ = relocate(original, 'original')
-        target, _ = add_same_path_overlap(target, 0.)
+        target, _ = add_same_path_overlap(target, 2.0)
         closed = len(target)>2 and math.dist(target[0],target[-1])<1e-6
         baseline = compensate(target, CleanConfig(), closed=closed)
         holder = transition_holder(baseline, target, DEFAULT_TRANSITION)
@@ -56,19 +59,19 @@ def files(svg, output=None):
         raise ValueError('Output must have .hpgl extension')
     return stem,stem.with_suffix('.json')
 
-def write(svg,output=None):
-    hpgl,report,targets,paths=build(svg)
+def write(svg,output=None,cut_force=None,cut_speed=None):
+    hpgl,report,targets,paths=build(svg,cut_force,cut_speed)
     hp,js=files(svg,output)
     hp.write_bytes(hpgl.encode('ascii'))
     js.write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
     return hp,js,report,targets,paths
 
-def verify(svg,output=None):
+def verify(svg,output=None,cut_force=None,cut_speed=None):
     hp,js=files(svg,output)
     if not hp.is_file() or not js.is_file():
         raise ValueError('Missing built HPGL/report; run build first')
     saved=json.loads(js.read_text(encoding='utf-8'))
-    hpgl,report,targets,paths=build(svg)
+    hpgl,report,targets,paths=build(svg,cut_force,cut_speed)
     if saved!=report or hp.read_bytes()!=hpgl.encode('ascii'):
         raise ValueError('Job, source, settings or parameters differ from current build; NO CUT SENT')
     return hpgl,report,targets,paths
@@ -95,6 +98,8 @@ def main(argv=None):
     p.add_argument('svg',type=Path,help='ORIGINAL uncompensated SVG (not holder-path SVG)')
     p.add_argument('--output',type=Path,help='HPGL output path')
     p.add_argument('--confirm-live-test',default='')
+    p.add_argument('--cut-force','--force',dest='cut_force',type=int,default=None,help='Override force (1..400; hardware support unverified)')
+    p.add_argument('--cut-speed','--speed',dest='cut_speed',type=int,default=None,help='Override speed (1..300)')
     a=p.parse_args(argv)
     try:
         if a.action in ('cut','run') and a.confirm_live_test != CONFIRM:
@@ -102,15 +107,15 @@ def main(argv=None):
         if a.action in ('cut','run') and sys.platform != 'win32':
             raise ValueError('Live USB cutting is supported on Windows only')
         if a.action in ('build','run'):
-            hp,js,report,targets,paths=write(a.svg,a.output)
+            hp,js,report,targets,paths=write(a.svg,a.output,a.cut_force,a.cut_speed)
             print('BUILT:',hp,'\nREPORT:',js)
         elif a.action=='preview':
-            _,report,targets,paths=build(a.svg)
+            _,report,targets,paths=build(a.svg,a.cut_force,a.cut_speed)
             print('PREVIEW:',preview(a.svg,targets,paths))
             print('NO CUT SENT')
             return 0
         if a.action in ('check','cut','run'):
-            hpgl,report,targets,paths=verify(a.svg,a.output)
+            hpgl,report,targets,paths=verify(a.svg,a.output,a.cut_force,a.cut_speed)
             print('PASS: source, HPGL, calibration and parameters match')
             if a.action in ('cut','run'):
                 from smart3_cut import send_live_job
