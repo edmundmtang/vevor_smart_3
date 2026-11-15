@@ -4,28 +4,154 @@ This is the **v1.0.0 release**, with the best physically tested settings found f
 
 ## Install
 
+From the repository directory, install dependencies:
+
 ```powershell
 python -m pip install -r .\requirements.txt
 ```
 
-Install dependencies from `requirements.txt`. The Blender mesh exporter emits polylines/polygons and has been tested with the Smart3 parser. Other SVG path types remain subject to parser limitations.
+The Blender mesh exporter emits polylines/polygons and has been tested with the Smart3 parser. Other SVG path types remain subject to parser limitations.
 
-## Commands (Windows PowerShell)
+## Command-line interface
+
+Run the production entry point from the repository directory:
+
+```text
+python .\smart3.py [-h] [--output OUTPUT] [--confirm-live-test CONFIRM_LIVE_TEST] [--cut-force CUT_FORCE] [--cut-speed CUT_SPEED] {build,check,preview,cut,run} svg
+```
+
+The action and SVG source are required positional arguments. Options may be supplied before or after the positional arguments.
+
+| Argument | Meaning |
+| --- | --- |
+| `action` | One of `build`, `check`, `preview`, `cut`, or `run`. |
+| `svg` | Path to an **existing, original, uncompensated** `.svg` input file. Do not use an already compensated holder preview. |
+| `-h`, `--help` | Print CLI help and exit. |
+| `--output PATH` | Path for the generated/verified `.hpgl` file, which **must end in `.hpgl`**. Its report is written/read at the same path with a `.json` extension. Defaults to the input SVG path with `.hpgl` extension. Used by `build`, `check`, `cut`, and `run`; **not used by `preview`**. |
+| `--cut-force N`, `--force N` | Override `cut_force` from `engine/settings.txt`. Integer from **1 to 400**; hardware support across this range is unverified. |
+| `--cut-speed N`, `--speed N` | Override `cut_speed` from `engine/settings.txt`. Integer from **1 to 300**. |
+| `--confirm-live-test I_ACCEPT_MOVEMENT` | Mandatory exact confirmation token for `cut` and `run`. Does not bypass Windows-only live USB restrictions or other validation. |
+
+If force/speed overrides are omitted, the program loads the corresponding settings from `engine/settings.txt`. Overrides are used for job generation and verification, and for live transmission where applicable. Keep the same overrides for a later `check` or `cut` as were used for `build`: the verifier compares the generated report and HPGL byte-for-byte against the saved files.
+
+### Command behavior
+
+| Action | Files read | Files written | Cutter movement |
+| --- | --- | --- | --- |
+| `build` | Original SVG, settings | `.hpgl` and companion `.json` | **No** |
+| `preview` | Original SVG, settings | `<svg-stem>_holder_preview.svg` beside the source | **No** |
+| `check` | Original SVG, settings, existing `.hpgl` and `.json` | None | **No** |
+| `cut` | Original SVG, settings, existing `.hpgl` and `.json` | None | **Yes, on Windows** |
+| `run` | Original SVG, settings | `.hpgl` and `.json` (then verifies and transmits) | **Yes, on Windows** |
+
+All actions calculate compensated geometry and validate applicable settings and material bounds. `check` and `cut` require a previously built matching HPGL/report pair. `run` creates/replaces that pair, verifies it, and then sends it. The live commands require an explicit confirmation and refuse to run on non-Windows systems.
+
+### Usage examples (Windows PowerShell)
+
+**1. Build an offline cutting job** (no USB transmission):
 
 ```powershell
 python .\smart3.py build .\examples\square.svg
+```
+
+Creates `examples\square.hpgl` and `examples\square.json`. The JSON report records the source SHA-256, HPGL SHA-256, settings, contour count, compensation parameters, and bounds.
+
+**2. Preview the commanded holder path** (no USB transmission):
+
+```powershell
 python .\smart3.py preview .\examples\square.svg
+```
+
+Creates `examples\square_holder_preview.svg`. **Blue** is the compensated holder path; **gray dashed** is the original target. The preview is for inspection only: **never feed it back to `build`, `cut`, or `run` as the source**. `--output` does not rename this preview.
+
+**3. Verify an existing job** (no USB transmission):
+
+```powershell
 python .\smart3.py check .\examples\square.svg
+```
+
+Recomputes the job and checks the saved report and HPGL against the current SVG, settings, calibration, and CLI overrides. If the files are missing or anything differs, verification fails; no cut is sent.
+
+**4. Cut an already built and verified job** (live USB movement):
+
+```powershell
 python .\smart3.py cut .\examples\square.svg --confirm-live-test I_ACCEPT_MOVEMENT
 ```
 
-`build` creates `square.hpgl` and `square.json` without machine movement. `preview` creates `square_holder_preview.svg`: **blue is commanded holder geometry**, gray dashed is original target geometry. Preview SVG is NOT an input to cut. `check` recomputes the job and compares HPGL, source hash, calibration, and report. `cut` only transmits a previously verified build. `run` builds, verifies and transmits in one command with the same explicit confirmation:
+Verifies the saved job again before transmission. It does not rebuild the saved files. Live cutting is supported **only on Windows**.
+
+**5. Build, verify, and cut in one command** (live USB movement):
 
 ```powershell
 python .\smart3.py run .\examples\square.svg --confirm-live-test I_ACCEPT_MOVEMENT
 ```
 
-**Before any live cut:** verify cutter origin, actual usable material area, pinch-roller grip, and stop access. No USB write proves machine execution. Failed or partial writes must not be automatically retried. Never submit an already compensated holder SVG as the source.
+This creates/replaces the HPGL and report, verifies them, and sends the job. Use only when ready for immediate cutter movement.
+
+**6. Choose a custom HPGL/report destination:**
+
+```powershell
+python .\smart3.py build .\examples\square.svg --output .\examples\custom_job.hpgl
+python .\smart3.py check .\examples\square.svg --output .\examples\custom_job.hpgl
+python .\smart3.py cut .\examples\square.svg --output .\examples\custom_job.hpgl --confirm-live-test I_ACCEPT_MOVEMENT
+```
+
+The matching report is `examples\custom_job.json`. The destination directory must already exist. A filename without the `.hpgl` extension is rejected.
+
+**7. Override force and speed for an offline build:**
+
+```powershell
+python .\smart3.py build .\examples\square.svg --force 120 --speed 80
+python .\smart3.py check .\examples\square.svg --force 120 --speed 80
+```
+
+The long forms `--cut-force 120 --cut-speed 80` are equivalent. These are **illustrative CLI values, not recommended cutting settings**. Choose values appropriate to the machine, blade, and material.
+
+**8. Cut a job built with overrides:**
+
+```powershell
+python .\smart3.py cut .\examples\square.svg --force 120 --speed 80 --confirm-live-test I_ACCEPT_MOVEMENT
+```
+
+Use exactly the overrides from the build. If you built with an override but omit it during `check` or `cut`, verification will fail unless the resulting effective settings happen to match.
+
+**9. One-step run with a custom output and overrides:**
+
+```powershell
+python .\smart3.py run .\examples\square.svg --output .\examples\custom_job.hpgl --cut-force 120 --cut-speed 80 --confirm-live-test I_ACCEPT_MOVEMENT
+```
+
+**10. Display help:**
+
+```powershell
+python .\smart3.py --help
+```
+
+### Typical safe workflow
+
+1. Export a simple original SVG with physical millimetre dimensions.
+2. Run `preview` and inspect the blue holder geometry against the gray target.
+3. Run `build`, optionally specifying output, force, and speed.
+4. Run `check` with the **same** output path and overrides.
+5. Inspect cutter origin, material area, pinch-roller grip, and accessible stop controls.
+6. On Windows, run `cut` with the same output path and overrides and the exact confirmation token, while attending the machine.
+
+**Before any live cut:** verify cutter origin, actual usable material area, pinch-roller grip, and stop access. A successful USB write does **not** prove the machine executed the job. Failed or partial writes must **not** be automatically retried.
+
+### Common errors and troubleshooting
+
+| Symptom | Cause / action |
+| --- | --- |
+| `Expected an existing original SVG input file` | Supply an existing `.svg` source file. |
+| `SVG has no cuttable contours` | Export supported geometry; verify the SVG contains usable contours. |
+| `Output must have .hpgl extension` | Give `--output` a `.hpgl` filename. |
+| `Missing built HPGL/report; run build first` | Run `build` with the same source and `--output` location before `check` or `cut`. |
+| `Job, source, settings or parameters differ from current build; NO CUT SENT` | Check whether the SVG, settings, HPGL, JSON report, output path, or force/speed overrides changed; rebuild and recheck deliberately. |
+| `Live operation requires --confirm-live-test I_ACCEPT_MOVEMENT` | Supply the exact token for `cut` or `run` only when ready for physical movement. |
+| `Live USB cutting is supported on Windows only` | Use Windows for live cutting; offline actions can run without USB transmission. |
+| `BLOCKED: ...` | Validation or an expected runtime error stopped the operation. Review the reported reason; don't blindly retry a partially transmitted job. |
+
+The CLI exits with status `0` on success and `1` for handled validation/runtime errors. Invalid argparse syntax or argument choices are rejected by argparse before action execution.
 
 ## SVG limitations
 
