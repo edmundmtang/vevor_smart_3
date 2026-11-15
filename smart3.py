@@ -35,7 +35,7 @@ def build(svg, cut_force=None, cut_speed=None):
     paths = []
     for original in targets:
         target, _ = relocate(original, 'original')
-        target, _ = add_same_path_overlap(target, 2.0)
+        target, _ = add_same_path_overlap(target, 0.0)
         closed = len(target)>2 and math.dist(target[0],target[-1])<1e-6
         baseline = compensate(target, CleanConfig(), closed=closed)
         holder = transition_holder(baseline, target, DEFAULT_TRANSITION)
